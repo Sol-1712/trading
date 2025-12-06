@@ -1,0 +1,5 @@
+# Ignore secret API keys
+key.py
+
+# Ignore strategy notes
+strategy_ideas.txt
