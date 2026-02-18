@@ -2,6 +2,7 @@
 key.py
 
 # Ignore strategy notes
-strategy_ideas.txt
+docs/strategy_notes/strategy_ideas.txt
 
 data/raw/
+TODO.txt

@@ -1,4 +1,7 @@
 - Collect predicted funding rate from wss
 - Create synthetic predicted funding rate for backtesting
 
+- Backtest Engine
+- Basic Strategy
+
 - Add in D/W/M support if needed 

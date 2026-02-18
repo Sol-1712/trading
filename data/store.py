@@ -5,12 +5,15 @@ import os
 DATA_ROOT = Path("data") / "raw" 
 EXCHANGE = 'bybit'
 
+### Should add a columns argument to loading
+
+
 
 def make_file_path(
-        data_type: str,
-        symbol: str, 
-        interval: int | None = None
-        ) -> Path:
+    data_type: str,
+    symbol: str, 
+    interval: int | None = None
+    ) -> Path:
 
     """
     Creates file path for given paramters.
@@ -167,42 +170,65 @@ def save_partitioned_parquet(
     )
 
 
+def _month_starts(
+    start_dt: pd.Timestamp, 
+    end_dt: pd.Timestamp
+    ) -> list[pd.Timestamp]:
 
-def load_parquet(
-        base_path: Path,
-        start: str | None = None,   
-        end: str | None = None,
-        index_as: str = "datetime", # "datetime" or "unix_ms"
-    ) -> pd.DataFrame:
+    start_dt = start_dt.normalize().replace(day=1)
+    end_dt = end_dt.normalize().replace(day=1)
+    out = []
+    cur = start_dt
+    while cur <= end_dt:
+        out.append(cur)
+        cur = cur + pd.offsets.MonthBegin(1)
+    return out
 
+
+def load_parquet_partitioned(
+    base_path: Path,
+    start: str | None = None, # MM/DD/YYYY
+    end: str | None = None, # Stops at the last entry before end point
+    index_as: str = "datetime",     # "datetime" or "unix_ms"
+    columns: list[str] | None = None,
+) -> pd.DataFrame:
+    
     """
-    Loads data for given parameters.
+    Load parquet partitions under:
+      base_path/year=YYYY/month=MM/*.parquet
 
-    Parameters
-    ----------
-    base_path : Path
-        Base path to file
-    start : str (optional)
-        "DD-MM-YYYY" or full timestamp.
-    end: str (optional)
-        "DD-MM-YYYY" or full timestamp.
-    index_as: str (optional)
-        "unix_ms" if data index is in unix ms,
-        otherwise defaults to datetime
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing all requested data
+    base_path example:
+      .../ohlcv/bybit/BTCUSDT/15m
     """
 
-    files = sorted(base_path.rglob("*.parquet"))
+    # Parse bounds
+    start_dt = pd.Timestamp(start, tz="UTC") if start is not None else None
+    end_dt = pd.Timestamp(end, tz="UTC") if end is not None else None
+
+    # Build file list
+    if start_dt is None and end_dt is None:
+        files = sorted(base_path.rglob("*.parquet"))
+    else:
+        if start_dt is None:
+            start_dt = pd.Timestamp("1970-01-01", tz="UTC")
+        if end_dt is None:
+            end_dt = pd.Timestamp.utcnow().tz_convert("UTC")
+
+        files = []
+        for m in _month_starts(start_dt, end_dt):
+            y = m.year
+            mm = f"{m.month:02d}"
+            month_dir = base_path / f"year={y}" / f"month={mm}"
+            if month_dir.exists():
+                files.extend(sorted(month_dir.glob("*.parquet")))
+
     if not files:
         return pd.DataFrame()
 
-    df = pd.concat([pd.read_parquet(f) for f in files])
+    # Read + concat
+    df = pd.concat((pd.read_parquet(f, columns=columns) for f in files), axis=0, copy=False)
 
-    # ensure datetime index (UTC) for filtering
+    # Ensure datetime index (UTC)
     if not isinstance(df.index, pd.DatetimeIndex):
         df.index = pd.to_datetime(df.index, utc=True)
     else:
@@ -213,12 +239,14 @@ def load_parquet(
 
     df = df.sort_index()
 
+    # Exact trimming
     if start is not None:
-        start_dt = pd.Timestamp(start, tz="UTC")
-        df = df[df.index >= start_dt]
+        df = df[df.index >= pd.Timestamp(start, tz="UTC")]
     if end is not None:
-        end_dt = pd.Timestamp(end, tz="UTC")
-        df = df[df.index <= end_dt]
+        df = df[df.index < pd.Timestamp(end, tz="UTC")]
+
+    # Optional de-dupe (useful if your updater overlaps)
+    df = df[~df.index.duplicated(keep="last")]
 
     if index_as == "unix_ms":
         df.index = (df.index.view("int64") // 1_000_000).astype("int64")
@@ -231,12 +259,16 @@ def load_parquet(
 if __name__ == "__main__":
 
     symbol = 'BTCUSDT'
-    interval = 15
+    interval = 60
     data_type = 'ohlcv'
-
     path = make_file_path(data_type, symbol, interval)
 
-    df = load_parquet(path)
+    # data_type = 'funding'
+    # symbol = 'BTCUSDT'
+    # path = make_file_path(data_type, symbol)
 
+    # df = load_parquet(path)
+
+    df = load_parquet_partitioned(path, start="01/01/2026", end="01/02/2026")
     print(df.head(10))
     print(df.tail(10))
