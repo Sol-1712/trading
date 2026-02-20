@@ -1,9 +1,19 @@
 # Ignore secret API keys
 key.py
 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Editor configs
+.vscode/
+
 # Ignore strategy notes
 docs/strategy_notes/strategy_ideas.txt
 
+# Data
 data/
 *.parquet
 *.feather
@@ -13,9 +23,7 @@ data/
 TODO.txt
 
 .venv/
-__pycache__/
 *.egg-info/
-.vscode/
 
 # Python bytecode
 *.pyc
