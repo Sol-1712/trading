@@ -6,7 +6,7 @@ import key
 
 from utils.fetch import fetch_funding_rate, fetch_last_ohlcv, fetch_mark_ohlc
 from utils.store import load_parquet_partitioned
-from utils.io import save_partitioned_parquet
+from utils.io import save_partitioned_parquet, load_partitioned_parquet
 from utils.paths import make_data_path
 
 ### Requires a full rewrite with threading logging, more rigorous
@@ -31,8 +31,10 @@ def get_last_timestamp(
     if not files:
         return None
 
-    df = load_parquet_partitioned(path, index_as="unix_ms")
-    
+    df = load_partitioned_parquet(path)
+
+    df.index = df.index.view("int64") // 1_000_000
+
     return int(df.index.max())
 
 
@@ -58,7 +60,6 @@ def update_ohlcv(
         Start time fallback if data cannot be found
     """
 
-    #path = make_file_path('ohlcv', symbol, interval)
     path = make_data_path('ohlcv', symbol, interval)
 
     last_ts = get_last_timestamp(path)
@@ -86,13 +87,6 @@ def update_ohlcv(
 
     df_merge = df_last.merge(df_mark, how='left', on='timestamp')
     
-    # save_partitioned_parquet(
-    #     df=df_merge, 
-    #     base_path=path,
-    #     data_type='ohlcv',
-    #     symbol=symbol,
-    #     interval=interval
-    #     )
     save_partitioned_parquet(df_merge, path)
     
 

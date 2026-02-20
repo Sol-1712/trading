@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from data.store import make_file_path, load_parquet_partitioned
+from utils.store import make_file_path, load_parquet_partitioned
 
 
 ### Return at t is (Ret[t] / Ret[t-1] - 1 )* held_pos
@@ -13,8 +13,8 @@ from data.store import make_file_path, load_parquet_partitioned
 
 # Fees (%)
 # Can pull from api when it matters
-MAKER_FEE = 0.0200
-TAKER_FEE = 0.0550
+MAKER_FEE = 0.000200
+TAKER_FEE = 0.000550
 
 FUNDING_INTERVAL = 480 # 8 hours in minutes
 
@@ -42,19 +42,20 @@ def main():
 
     df_merge = df_ohlcv.merge(df_funding, how='left', on='timestamp')
     df_merge['fundingRate'] = df_merge['fundingRate'].fillna(0)
-    print(df_merge.head(10))
-
     df_merge = df_merge.sort_index()
 
-    close = df_merge["mark_close"].astype("float64").to_numpy()
+
+    mark_close = df_merge["mark_close"].astype("float64").to_numpy()
     funding  = df_merge["fundingRate"].astype("float64").to_numpy()
 
-    ## ret[t] = close[t] / close[t-1]
-    ret = np.zeros_like(close)
-    ret[1:] = close[1:] / close[:-1] - 1.0
+    # I want to pass it these two columns only.
+    # ------------------------------------------------------------------------
 
-    pos = np.zeros_like(close)
+    ret = np.zeros_like(mark_close)
+    ret[1:] = mark_close[1:] / mark_close[:-1] - 1.0
+
     ### BASIC STRATEGY
+    pos = np.zeros_like(mark_close)
     pos[:] = 1 # Always long (enter at t=0)
 
     held_pos = np.roll(pos, 1)
@@ -64,16 +65,28 @@ def main():
     fee_rate = TAKER_FEE           
     fees = np.abs(trade) * fee_rate
 
-    strategy_ret = held_pos * ret - held_pos * funding - fees
+    funding_pnl = - held_pos * funding
+
+    strategy_ret = held_pos * ret + funding_pnl - fees
     strategy_ret[0] = 0
 
+    equity = np.cumprod(1.0 + strategy_ret)
 
-    equity = np.cumprod(1 + strategy_ret)
+    out = pd.DataFrame(
+        {
+            "strategy_ret": strategy_ret,
+            "equity": equity,
+            "held_pos": held_pos,
+            "trade": trade,
+            "fees": fees,
+            "funding_pnl": funding_pnl,
+        },
+        index=df_merge.index,
+    )
+    print(out.head(10))
     print(equity)
-
-
-
+    return out
 
 if __name__ == "__main__":
-    main()
+    df = main()
 

@@ -2,7 +2,9 @@ import pandas as pd
 from pathlib import Path
 import os
 
-DATA_ROOT = Path("data") / "raw" 
+PACKAGE_ROOT = Path(__file__).resolve().parents[2]  # utils -> src -> project root
+DATA_ROOT = PACKAGE_ROOT / "data" / "raw"
+
 EXCHANGE = 'bybit'
 
 ### Should add a columns argument to loading
@@ -16,32 +18,32 @@ def make_file_path(
     ) -> Path:
 
     """
-    Creates file path for given paramters.
+    Creates a fully deterministic file path for a given data type, symbol, and optional interval.
 
     Parameters
     ----------
     data_type : str
-        Requested data type e.g 'ohlcv'
+        Type of data requested, e.g., 'ohlcv' or 'funding'.
     symbol : str
-        Instrument symbol e.g 'BTCUSDT'.
-    interval : int (optional)
-        Bar interval in minutes.
-        Required for OHLCV data.
+        Instrument symbol, e.g., 'BTCUSDT'.
+    interval : int, optional
+        Bar interval in minutes. Required for OHLCV data.
 
     Returns
     -------
     Path
-        Path object.
+        Full path to the requested dataset.
     """
 
     data_type = data_type.lower()
     symbol = symbol.upper()
 
+    # Base path: DATA_ROOT / data_type / exchange / symbol
     base = DATA_ROOT / data_type / EXCHANGE / symbol
 
     if data_type == "ohlcv":
         if interval is None:
-            raise ValueError("interval must be provided for ohlcv")
+            raise ValueError("interval must be provided for OHLCV data")
         base = base / f"{interval}m"
     elif data_type == "funding":
         pass

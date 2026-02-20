@@ -5,3 +5,15 @@
 - Basic Strategy
 
 - Add in D/W/M support if needed 
+
+
+
+pip install -e . --upgrade
+
+
+
+
+- Fix the file loading completely, make a function to load the data and merge
+- Redo data collectioon using threading etc -> faster
+- Create Metrics and Plot modules for pnl data
+- Create strategy engine to pass to pnl
