@@ -21,7 +21,7 @@ data/
 *.h5
 
 TODO.txt
-
+research/test.ipynb
 .venv/
 *.egg-info/
 

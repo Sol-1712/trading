@@ -5,7 +5,6 @@ import pandas as pd
 import key
 
 from utils.fetch import fetch_funding_rate, fetch_last_ohlcv, fetch_mark_ohlc
-from utils.store import load_parquet_partitioned
 from utils.io import save_partitioned_parquet, load_partitioned_parquet
 from utils.paths import make_data_path
 
@@ -128,10 +127,7 @@ def update_funding(
 
     save_partitioned_parquet(
         df=df,
-        base_path=path,
-        data_type="funding",
-        symbol=symbol,
-        mode="merge",
+        dataset_path=path
     )
 
 

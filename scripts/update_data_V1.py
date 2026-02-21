@@ -5,7 +5,7 @@ import pandas as pd
 import key
 
 from utils.fetch import fetch_funding_rate, fetch_last_ohlcv, fetch_mark_ohlc
-from utils.store import load_parquet_partitioned
+from utils.store_defunct import load_parquet_partitioned
 from utils.io import save_partitioned_parquet
 from utils.paths import make_data_path
 

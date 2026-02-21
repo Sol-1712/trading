@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from utils.store import make_file_path, load_parquet_partitioned
+from utils.store_defunct import make_file_path, load_parquet_partitioned
 
 
 ### Return at t is (Ret[t] / Ret[t-1] - 1 )* held_pos
