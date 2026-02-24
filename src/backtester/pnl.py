@@ -10,6 +10,7 @@ STARTING_CAPITAL = 100000.0
 
 # assuming execution at the close of bar t (i.e. the same price that triggered the signal), 
 # which is slightly optimistic — in reality there's always some slippage between signal generation and fill.
+
 # Fill at open[t+1]?
 # price_ret[t] = (close[t] - open[t]) / open[t]  # shifted by your delay
 
@@ -61,7 +62,8 @@ def pnl(
     price_ret[1:] = (prices[1:] - prices[:-1]) / prices[:-1]
 
     strategy_pnl, funding_pnl, fees = pnl_loop(
-        held_pos, trade, price_ret, funding
+        held_pos, trade, price_ret, funding,
+        capital, leverage, fee_rate, delay_bars
     )
 
     equity = capital + np.cumsum(strategy_pnl)
@@ -76,7 +78,7 @@ def pnl(
         strategy_pnl, equity_lagged,
         out=np.zeros_like(strategy_pnl),
         where=equity_lagged != 0
-    ) # Puts returns into %
+    ) # Puts returns into decimal (%) form
 
     assert np.isclose(equity[-1], 100_000 + strategy_pnl.sum())
 
@@ -91,7 +93,7 @@ def pnl(
             "funding_pnl ($)": funding_pnl,
             "position_pnl ($)": position_pnl,
             "strategy_pnl ($)": strategy_pnl,
-            "returns_normalized (%)": returns_normalized,
+            "returns (%)": returns_normalized,
             "equity ($)": equity,
             "cum_ret": cum_ret
         },
