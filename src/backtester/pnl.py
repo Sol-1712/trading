@@ -61,16 +61,12 @@ def pnl(
     price_ret = np.zeros_like(prices)
     price_ret[1:] = (prices[1:] - prices[:-1]) / prices[:-1]
 
-    strategy_pnl, funding_pnl, fees = pnl_loop(
+    strategy_pnl, funding_pnl, fees, equity_lagged = pnl_loop(
         held_pos, trade, price_ret, funding,
         capital, leverage, fee_rate, delay_bars
     )
 
-    equity = capital + np.cumsum(strategy_pnl)
-    cum_ret = (equity / capital) -1 
-    equity_lagged = np.roll(equity, 1)
-    equity_lagged[0] = capital
-
+    equity = equity_lagged + strategy_pnl
     position_pnl = strategy_pnl - funding_pnl + fees # raw trade pnl
     trade_dollars = trade * (equity_lagged * leverage) # trade size in dollars
 
@@ -80,7 +76,7 @@ def pnl(
         where=equity_lagged != 0
     ) # Puts returns into decimal (%) form
 
-    assert np.isclose(equity[-1], 100_000 + strategy_pnl.sum())
+    assert np.isclose(equity[-1], capital + strategy_pnl.sum())
 
     out = pd.DataFrame(
         {
@@ -93,10 +89,10 @@ def pnl(
             "funding_pnl ($)": funding_pnl,
             "position_pnl ($)": position_pnl,
             "strategy_pnl ($)": strategy_pnl,
-            "returns (%)": returns_normalized,
+            "returns_normalised": returns_normalized,
             "equity ($)": equity,
-            "cum_ret": cum_ret
-        },
+            "equity_lagged ($)": equity_lagged
+        },  
         index=data_df.index
     )
 
@@ -157,6 +153,9 @@ def pnl_loop(
     fees : np.ndarray
         Transaction and/or funding costs applied per bar.
 
+    equity_lagged: np.ndarray
+        Lagged equity array ([0,1] = initial capital)
+
     Notes
     -----
     - Uses a sequential loop (Numba JIT-compiled) because capital
@@ -186,4 +185,4 @@ def pnl_loop(
         strategy_pnl[t] = pnl_t
         current_equity += pnl_t
 
-    return strategy_pnl, funding_pnl, fees
+    return strategy_pnl, funding_pnl, fees, equity_lagged

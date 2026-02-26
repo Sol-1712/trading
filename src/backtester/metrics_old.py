@@ -13,7 +13,7 @@ SECONDS_TO_PERIODS_247: dict[int, tuple[str, int]] = {
     604800: ("1W",    52),
 }
 
-
+# Helper Function
 def infer_ann_factor(
     dtindex: pd.DatetimeIndex
     ) -> tuple[str, float]:
@@ -29,6 +29,8 @@ def infer_ann_factor(
     freq, periods = SECONDS_TO_PERIODS_247.get(int(median_diff), ("1H", 365 * 24))
     return freq, float(periods)
 
+
+# --- RETURN METRICS ----------------------------------------------------------------
 def _equity_curve(
     returns: pd.Series
     ) -> pd.Series:
@@ -38,15 +40,19 @@ def _equity_curve(
 
 def _cagr(
     returns: pd.Series,
-    ann_factor: float,
+    ann_factor: float
     ) -> float:
 
-    eq = _equity_curve(returns)
-    n_years = len(returns) / ann_factor
-    if n_years == 0:
+    if returns.empty:
         return 0.0
-    
-    return float(eq.iloc[-1] ** (1 / n_years) - 1)
+
+    compounded = (1.0 + returns).prod()
+    n_years = len(returns) / ann_factor
+
+    if n_years <= 0:
+        return 0.0
+
+    return float(compounded ** (1.0 / n_years) - 1.0)
 
 
 def _sharpe(
@@ -58,7 +64,7 @@ def _sharpe(
     if returns.std() == 0:
         return 0.0
     
-    return float(((returns.mean() - (rf / ann_factor)) / returns.std()) * np.sqrt(ann_factor))
+    return float(((returns.mean()) / returns.std()) * np.sqrt(ann_factor))
 
 
 def _sortino(
@@ -121,8 +127,6 @@ def _profit_factor(
     return float(gross_profit / gross_loss)
 
 
-# --- Categories -------------------------------------------------------------------
-
 def return_metrics(
     returns: pd.Series,
     ann_factor: float,
@@ -132,34 +136,72 @@ def return_metrics(
     avg_win_loss, expectancy, hit_rate_trade = _avg_win_loss_ratio_expectancy(returns)
     return {
         "Frequency":              freq,
-        "CAGR":                   f"{_cagr(returns, ann_factor):.2%}",
-        "Sharpe":                 f"{_sharpe(returns, ann_factor):.3f}",
-        "Sortino":                f"{_sortino(returns, ann_factor):.3f}",
-        "Annualised Volatility":  f"{_volatility(returns, ann_factor):.2%}",
-        "Hit Rate (All Bars)":    f"{_hit_rate(returns):.2%}",
-        "Hit Rate (Trade Bars)":  f"{hit_rate_trade:.2%}",
-        "Avg Win/Loss Ratio":     f"{avg_win_loss:.3f}" if not np.isnan(avg_win_loss) else "N/A",
-        "Expectancy":             f"{expectancy:.3%}" if not np.isnan(expectancy) else "N/A",
-        "Profit Factor":          f"{_profit_factor(returns):.3f}",
+        "CAGR":                   _cagr(returns, ann_factor),
+        "Sharpe":                 _sharpe(returns, ann_factor),
+        "Sortino":                _sortino(returns, ann_factor),
+        "Annualised Volatility":  _volatility(returns, ann_factor),
+        "Hit Rate (All Bars)":    _hit_rate(returns),
+        "Hit Rate (Trade Bars)":  hit_rate_trade,
+        "Avg Win/Loss Ratio":     avg_win_loss if not np.isnan(avg_win_loss) else None,
+        "Expectancy":             expectancy if not np.isnan(expectancy) else None,
+        "Profit Factor":          _profit_factor(returns),
     }
 
+# --- RISK METRICS --------------------------------------------------------------------------------
 
-# def _risk_metrics(
-#     returns: pd.Series, freq: str, ann_factor: float
-#     ) -> dict:
+# Max Drawdown $
+# Calmar Ratio 
+# Avg Drawdown Duration 
+# Max Drawdown Duration — longest single drawdown in bars
+# Time in Drawdown — % of bars spent below previous peak
+# VaR (95%, 99%) — worst loss at given confidence level
+# CVaR / Expected Shortfall (95%, 99%) — average loss beyond VaR threshold
 
-#     mdd      = _max_drawdown(returns)
-#     calmar   = _calmar(returns, ann_factor)
-#     avg_dur  = _avg_drawdown_duration(returns)
-#     max_cons = _max_consecutive_losses(returns)
 
-#     return {
-#         "Max Drawdown":               f"{mdd:.2%}",
-#         "Calmar Ratio":               f"{calmar:.3f}" if not np.isnan(calmar) else "N/A",
-#         "Avg Drawdown Duration":      f"{avg_dur:.1f} {freq} bars",
-#         "Max Consecutive Losses":     f"{max_cons} bars",
-#     }
+def _max_drawdown(
+    equity_curve: pd.Series,
+    ) -> float:
 
+    # Do eventually need to guard against 0 equity
+
+    ec = equity_curve.to_numpy()
+    running_peak = np.maximum.accumulate(ec)
+    drawdown = (ec - running_peak) / running_peak
+    return drawdown.min()
+ 
+def _calmar(
+    mdd: float ,   
+    returns: pd.Series,
+    ann_factor: float,
+    ) -> float:
+    
+    if mdd ==0:
+        return np.nan
+    
+    cagr = _cagr(returns, ann_factor)
+
+    return (cagr / np.abs(mdd))
+# Ann ret / abs(mdd)
+
+
+
+
+
+
+
+
+def risk_metrics(
+    returns: pd.Series,
+    ) -> dict:
+
+    equity_curve = _equity_curve(returns)
+
+    MDD = _max_drawdown(equity_curve)
+    return {
+        "MDD": MDD,
+    }
+
+# --- COST METRICS --------------------------------------------------------------------------------
 
 # def _cost_metrics(
 #     pnl_df:   pd.DataFrame,
@@ -201,6 +243,8 @@ def return_metrics(
 #         "Fee Drag (Sharpe)":      f"{fee_drag_sharpe:.3f}",
 #     }
 
+
+# --- POSITION METRICS -----------------------------------------------------------------------------
 ### ADD TIME METRICS (lonmg, short, flat, total)
 # def _position_metrics(
 #     pnl_df: pd.DataFrame, freq: str
@@ -230,6 +274,8 @@ def return_metrics(
 #         "Avg Trade Size ($)":     f"${avg_trade_size:,.2f}",
 #     }
 
+
+
 ### MASTER CALL
 def calc_metrics(
     pnl_df: pd.DataFrame,
@@ -246,5 +292,5 @@ def calc_metrics(
         pd.DataFrame with metrics grouped by category, readable in a notebook.
     """
 
-    returns = pnl_df["returns (%)"]
+    returns = pnl_df["returns_normalised"]
     freq, ann  = infer_ann_factor(pnl_df.index)
