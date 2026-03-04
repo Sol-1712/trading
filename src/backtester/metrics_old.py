@@ -149,14 +149,6 @@ def return_metrics(
 
 # --- RISK METRICS --------------------------------------------------------------------------------
 
-# Max Drawdown $
-# Calmar Ratio 
-# Avg Drawdown Duration 
-# Max Drawdown Duration — longest single drawdown in bars
-# Time in Drawdown — % of bars spent below previous peak
-# VaR (95%, 99%) — worst loss at given confidence level
-# CVaR / Expected Shortfall (95%, 99%) — average loss beyond VaR threshold
-
 
 def _max_drawdown(
     equity_curve: pd.Series,

@@ -28,5 +28,5 @@ class CoreStats:
         # Basic stats
         self.equity_end = self.equity[-1]
         self.mean = float(np.mean(self.returns)) 
-        self.sd = np.std(self.returns, ddof=1) # Sample sd not population (ddof)
+        self.sd = np.std(self.returns, ddof=0) # Population SD (ddof)
 

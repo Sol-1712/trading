@@ -77,7 +77,8 @@ class ReturnMetrics:
         Metrics:
         - Sortino ratio: (mean return / downside standard deviation) * sqrt(annualization factor)
         """
-        downside = np.minimum(0, self.core.returns)
+        threshold = 0
+        downside = np.minimum(0, self.core.returns - threshold)
         dd_std = np.sqrt(np.mean(downside ** 2))
 
         if dd_std == 0:

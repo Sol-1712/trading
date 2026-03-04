@@ -1,34 +1,8 @@
 from .core_stats import CoreStats
 from .return_metrics import ReturnMetrics
-# from .risk_metrics import RiskMetrics
+from .risk_metrics import RiskMetrics
 # from .cost_metrics import CostMetrics
 # from .position_metrics import PositionMetrics
-
-# Returns
-
-# CAGR
-# Sharpe Ratio
-# Sortino Ratio
-# Annualised Volatility
-# Hit Rate (Trade Bars)
-# Avg Win/Loss Ratio
-# Expectancy (per bar)
-# Profit Factor
-# Skewness — crypto returns are heavily skewed, worth knowing if your strategy profits from or is hurt by tail moves
-
-
-# Risk
-
-# Max Drawdown
-# Max Drawdown Duration
-# Time in Drawdown
-# Calmar Ratio
-# Avg Drawdown Duration
-# CVaR 95% — more important than VaR for crypto fat tails
-# CVaR 99%
-# VaR 95%
-# Downside Deviation
-# Longest Losing Streak
 
 
 # Costs
@@ -90,7 +64,7 @@ class PerformanceReport:
 
         # Metrics classes
         self.returns = ReturnMetrics(self.core)
-        # self.risk = RiskMetrics(self.core, self.returns)
+        self.risk = RiskMetrics(self.core, self.returns)
         # self.cost = CostMetrics(self.core)
         # self.position = PositionMetrics(self.core)
 
@@ -99,5 +73,12 @@ class PerformanceReport:
         return self.core.equity
     
     @property
-    def mean_return(self):
-        return self.core.mean
+    def mdd(self):
+        return self.core.mdd
+    
+    @property
+    def sd_returns(self):
+        """
+        Annualised
+        """
+        return self.core.sd * self.core.ann_factor
