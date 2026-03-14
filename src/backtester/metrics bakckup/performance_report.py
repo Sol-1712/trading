@@ -61,5 +61,17 @@ class PerformanceReport:
         self.cost = CostMetrics(self.core, self.returns)
         # self.position = PositionMetrics(self.core)
 
+    @property
+    def equity(self):
+        return self.core.equity
+    
+    @property
+    def mdd(self):
+        return self.core.mdd
+    
+    @property
+    def sd_returns(self):
+        """ Annualised """
+        return self.core.sd * self.core.ann_factor
 
     

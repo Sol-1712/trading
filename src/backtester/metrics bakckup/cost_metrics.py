@@ -17,7 +17,6 @@ class CostMetrics:
     - Cost to gross ratio
     - Pct bars paying funding
     - Avg fee per bar
-    - Annualised turnover
     - Fee drag on sharpe
     - Funding drag on sharpe
 

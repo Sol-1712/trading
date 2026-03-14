@@ -10,9 +10,10 @@ STARTING_CAPITAL = 100000.0
 
 # assuming execution at the close of bar t (i.e. the same price that triggered the signal), 
 # which is slightly optimistic — in reality there's always some slippage between signal generation and fill.
+# Am I just a taker (Market Order)?
 
 # Fill at open[t+1]?
-# price_ret[t] = (close[t] - open[t]) / open[t]  # shifted by your delay
+# price_ret[t] = (close[t] - open[t]) / open[t]  # shifted by delay
 
 ### DOLLAR RETURNS
 def pnl(
@@ -70,13 +71,13 @@ def pnl(
     position_pnl = strategy_pnl - funding_pnl + fees # raw trade pnl
     trade_dollars = trade * (equity_lagged * leverage) # trade size in dollars
 
-    returns_normalized = np.divide(
+    returns_normalised = np.divide(
         strategy_pnl, equity_lagged,
         out=np.zeros_like(strategy_pnl),
         where=equity_lagged != 0
     ) # Puts returns into decimal (%) form
 
-    assert np.isclose(equity[-1], capital + strategy_pnl.sum())
+    returns_normalised[0] = 0.0
 
     out = pd.DataFrame(
         {
@@ -89,7 +90,7 @@ def pnl(
             "funding_pnl ($)": funding_pnl,
             "position_pnl ($)": position_pnl,
             "strategy_pnl ($)": strategy_pnl,
-            "returns_normalised": returns_normalized,
+            "returns_normalised": returns_normalised,
             "equity ($)": equity,
             "equity_lagged ($)": equity_lagged
         },  

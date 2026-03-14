@@ -37,7 +37,7 @@ class ReturnMetrics:
 
     def compute_sharpe(self, returns: np.ndarray) -> float:
         """
-        Compute the per-bar Sharpe ratio for a series of returns.
+        Compute the Sharpe ratio for a series of returns.
 
         Parameters
         ----------
@@ -60,7 +60,7 @@ class ReturnMetrics:
     @property
     def net_return(self) -> float:
         """
-        Compunded net return of the strategy as a fraction of starting capital.
+        Total net return of the strategy as a fraction of starting capital.
         Capital-agnostic.
 
         Returns
@@ -68,14 +68,17 @@ class ReturnMetrics:
         float
             Net return: (final equity - initial equity) / initial equity
         """
-
-        return float(self.core.equity_curve[-1] - 1)
+        initial = self.core.pnl_df['equity ($)'].iat[0]
+        if initial == 0:
+            return np.nan
+        
+        return float(self.core.pnl_df['strategy_pnl ($)'].sum() / initial)
     
 
     @property
     def gross_return(self) -> float:
         """
-        Compounded gross return of the strategy as a fraction of starting capital.
+        Total gross return of the strategy as a fraction of starting capital.
         Capital-agnostic.
 
         Returns
@@ -83,8 +86,11 @@ class ReturnMetrics:
         float
             Gross return
         """
-        gross_equity = np.cumprod(1.0 + self.position_returns)
-        return float(gross_equity[-1] - 1)
+        initial = self.core.pnl_df['equity ($)'].iat[0]
+        if initial == 0:
+            return np.nan
+        
+        return float(self.core.pnl_df['position_pnl ($)'].sum() / initial)
     
 
     @property
