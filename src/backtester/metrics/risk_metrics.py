@@ -18,52 +18,53 @@ class RiskMetrics:
 
     Attributes:
         core (CoreStats): Precomputed core statistics and returns from PnL.
-        return_metrics (ReturnMetrics): Precomputed return metrics.
     """
 
-    def __init__(self, core, return_metrics):
+    def __init__(self, core):
         """
-        Initializes RiskMetrics with CoreStats and ReturnMetrics objects.
+        Initializes RiskMetrics with CoreStats objects.
 
         Args:
             core (CoreStats): Object containing primitive statistics and returns.
-            return_metrics (ReturnMetrics): Object containing calculated return metrics.
         """
-        self.core = core
-        self.return_metrics = return_metrics
+        self.core       = core
 
 
-    @cached_property
+    @property
     def max_drawdown(self) -> float:
-        return self.core.mdd
+        return float(self.core.drawdown.min())
 
 
     @cached_property
     def drawdown_durations(self) -> np.ndarray:
         """
-        Computes the lengths of consecutive drawdown periods.
+        Lengths of consecutive drawdown periods (number of bars).
 
         Returns:
-            np.ndarray: Array of drawdown durations in number of bars.
+            np.ndarray: Array of drawdown durations.
         """
-        dd = self.core.drawdown < 0  # boolean array: True if in drawdown
+        dd = self.core.drawdown < 0  # True when in drawdown
+
         if not dd.any():
-            return np.array([])
+            return np.array([], dtype=int)
 
-        durations = []
-        count = 0
-        for in_dd in dd:
-            if in_dd:
-                count += 1
-            elif count > 0:
-                durations.append(count)
-                count = 0
-        # Add final run if it ends in drawdown
-        if count > 0:
-            durations.append(count)
+        # Convert boolean array to int (1=in drawdown, 0=flat)
+        dd_int = dd.astype(int)
 
-        return np.array(durations)
+        # Pad with zeros to detect start/end of drawdowns
+        padded = np.r_[0, dd_int, 0]
+        diff = np.diff(padded)
+
+        # Start and end indices of each drawdown
+        starts = np.where(diff == 1)[0]
+        ends   = np.where(diff == -1)[0]
+
+        # Length of each drawdown period
+        durations = ends - starts
+
+        return durations
     
+
     @property
     def time_in_drawdown(self) -> float:
         """
@@ -74,6 +75,7 @@ class RiskMetrics:
         """
         return float(np.mean(self.core.drawdown < 0))
     
+
     @property
     def max_drawdown_duration(self) -> float:
         """
@@ -84,6 +86,7 @@ class RiskMetrics:
         """
         durations = self.drawdown_durations
         return float(durations.max()) if len(durations) > 0 else 0.0
+
 
     @property
     def avg_drawdown_duration(self) -> float:
@@ -96,6 +99,7 @@ class RiskMetrics:
         durations = self.drawdown_durations
         return float(durations.mean()) if len(durations) > 0 else 0.0
     
+
     @property
     def calmar(self) -> float:
         """
@@ -104,11 +108,19 @@ class RiskMetrics:
         Returns:
             float: Calmar Ratio.
         """
-        mdd = self.core.mdd
-        if mdd == 0:
+        if self.max_drawdown == 0:
             return np.nan
-        return float(self.return_metrics.cagr / abs(mdd))
+        
+        n_years = self.core.n_obs / self.core.ann_factor
+
+        if n_years == 0:
+            return np.nan
+
+        cagr = float((self.core.equity[-1] / self.core.equity[0]) ** (1 / n_years) - 1)
+
+        return float(cagr / abs(self.mdd))
     
+
     @property
     def downside_deviation(self) -> float:
         """
@@ -123,7 +135,8 @@ class RiskMetrics:
 
         return float(dd_std * self.core.ann_sqrt)
     
-    @property
+
+    @cached_property
     def longest_losing_streak(self) -> int:
         """
         Maximum number of consecutive losing periods.
@@ -132,55 +145,69 @@ class RiskMetrics:
             - int: longest streak of returns < 0
         """
         returns = self.core.returns
-
         if len(returns) == 0:
             return 0
+
+        # Boolean array: True where return < 0
         losses = returns < 0
 
-        max_streak = 0
-        current_streak = 0
+        if not losses.any():
+            return 0
 
-        for is_loss in losses:
-            if is_loss:
-                current_streak += 1
-                max_streak = max(max_streak, current_streak)
-            else:
-                current_streak = 0
+        # Find the boundaries where streaks start/end
+        # Convert boolean array to int
+        losses_int = losses.astype(int)
 
-        return max_streak
+        # Use run-length encoding trick: zero-pad at both ends
+        padded = np.r_[0, losses_int, 0]
+        diff = np.diff(padded)
+
+        # Starts (+1) and ends (-1) of streaks
+        run_starts = np.where(diff == 1)[0]
+        run_ends   = np.where(diff == -1)[0]
+
+        # Lengths of each streak
+        streak_lengths = run_ends - run_starts
+
+        return int(streak_lengths.max())
     
+
     def var(self, alpha: float = 0.05) -> float:
         """
         Value at Risk (VaR) at given confidence level.
         Returns positive loss magnitude.
         """
-        if len(self.returns) == 0:
+        if len(self.core.returns) == 0:
             return np.nan
-        return float(-np.percentile(self.returns, alpha * 100))
+        return float(np.percentile(self.core.returns, alpha * 100))
 
-    @property
-    def var_95(self) -> float:
-        return self.var(0.05)
-
-    @property
-    def var_99(self) -> float:
-        return self.var(0.01)
 
     def cvar(self, alpha: float = 0.05) -> float:
         """
         Conditional VaR (CVaR) / Expected Shortfall at given confidence.
         Returns positive average loss beyond VaR.
         """
-        if len(self.returns) == 0:
+        if len(self.core.returns) == 0:
             return np.nan
 
-        var_alpha = np.percentile(self.returns, alpha * 100)
-        tail_losses = self.returns[self.returns <= var_alpha]
+        var_alpha = np.percentile(self.core.returns, alpha * 100)
+        tail_losses = self.core.returns[self.core.returns <= var_alpha]
 
         if len(tail_losses) == 0:
             return 0.0
 
-        return float(-np.mean(tail_losses))
+        return float(np.mean(tail_losses))
+    
+
+    @property
+    def var_95(self) -> float:
+        return self.var(0.05)
+
+
+    @property
+    def var_99(self) -> float:
+        return self.var(0.01)
+    
 
     @property
     def cvar_95(self) -> float:

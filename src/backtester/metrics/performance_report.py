@@ -2,27 +2,7 @@ from .core_stats import CoreStats
 from .return_metrics import ReturnMetrics
 from .risk_metrics import RiskMetrics
 from .cost_metrics import CostMetrics
-# from .position_metrics import PositionMetrics
-
-
-# Costs
-
-# Fee Drag on Sharpe
-# Funding Drag on Sharpe — unique to perps, tells you if funding is helping or hurting
-
-
-# Position
-
-# Avg Position Size (% equity)
-# Time Long / Time Short / Time Flat
-# Avg Long Size / Avg Short Size
-# Avg Holding Period (bars)
-# Avg Trade Size ($)
-# Max Position Size (% equity)
-# Avg Leverage Used
-# Largest Single Win / Largest Single Loss
-# Long PnL vs Short PnL split — tells you which side of the book is generating alpha
-# Long Sharpe vs Short Sharpe — whether your edge is asymmetric between long and short
+from .position_metrics import PositionMetrics
 
 class PerformanceReport:
     """
@@ -57,9 +37,9 @@ class PerformanceReport:
 
         # Metrics classes
         self.returns = ReturnMetrics(self.core)
-        self.risk = RiskMetrics(self.core, self.returns)
-        self.cost = CostMetrics(self.core, self.returns)
-        # self.position = PositionMetrics(self.core)
+        self.risk = RiskMetrics(self.core)
+        self.cost = CostMetrics(self.core)
+        self.position = PositionMetrics(self.core)
 
 
     

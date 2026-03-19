@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from numba import njit
+from backtester.utils import _safe_divide
 
 TAKER_FEE = 0.000550
 LEVERAGE = 1.0
@@ -71,11 +72,8 @@ def pnl(
     position_pnl = strategy_pnl - funding_pnl + fees # raw trade pnl
     trade_dollars = trade * (equity_lagged * leverage) # trade size in dollars
 
-    returns_normalised = np.divide(
-        strategy_pnl, equity_lagged,
-        out=np.zeros_like(strategy_pnl),
-        where=equity_lagged != 0
-    ) # Puts returns into decimal (%) form
+    returns_normalised = _safe_divide(strategy_pnl, equity_lagged)
+    # Puts returns into decimal (%) form
 
     returns_normalised[0] = 0.0
 

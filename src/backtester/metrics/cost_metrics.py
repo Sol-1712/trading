@@ -1,6 +1,6 @@
 import numpy as np
 from functools import cached_property
-
+from backtester.utils import _compute_sharpe
 
 class CostMetrics:
     """
@@ -23,54 +23,47 @@ class CostMetrics:
 
     Attributes:
         core (CoreStats): Precomputed core statistics and returns from PnL.
-        return_metrics (ReturnMetrics): Precomputed return metrics.
     """
 
 
-    def __init__(self, core, return_metrics):
+    def __init__(self, core):
         """
         Initializes CostMetrics with a CoreStats object.
 
         Args:
             core (CoreStats): Object containing primitive statistics and returns.
-            return_metrics (ReturnMetrics): Object containing calculated return metrics.
         """
-        self.core           = core
-        self.return_metrics = return_metrics
-        pnl_df              = self.core.pnl_df
+        self.core             = core
+        
 
-        self.equity_lagged  = pnl_df["equity_lagged ($)"].to_numpy()
-        self.fees           = pnl_df["fees ($)"].to_numpy()
-        self.funding_pnl    = pnl_df["funding_pnl ($)"].to_numpy()
-        self.position_pnl   = pnl_df["position_pnl ($)"].to_numpy()
-        self.strategy_pnl   = pnl_df["strategy_pnl ($)"].to_numpy()
-        self.trade          = pnl_df["trade (% of equity)"].to_numpy()
-  
-        # Convert to return space
-        self.fee_returns      = self.fees / self.equity_lagged
-        self.funding_returns  = self.funding_pnl / self.equity_lagged
-        self.position_returns = self.position_pnl / self.equity_lagged
-        self.strategy_returns = self.core.returns
+    @cached_property
+    def net_return(self) -> float:
+        return float((self.core.equity[-1] / self.core.equity[0]) - 1)
 
 
+    @cached_property
+    def sharpe(self) -> float:
+        """Sharpe ratio of the strategy returns."""
+        return _compute_sharpe(self.core.returns)
+    
 
     @cached_property
     def total_fee_return(self) -> float:
         """Total fees paid as fraction of equity."""
-        return float(np.sum(self.fee_returns))
+        return float(np.sum(self.core.fee_returns))
 
 
     @cached_property
     def total_funding_return(self) -> float:
         """Total funding PnL as fraction of equity (signed)."""
-        return float(np.sum(self.funding_returns))
+        return float(np.sum(self.core.funding_returns))
 
 
     @cached_property
     def total_cost_return(self) -> float:
         """Total trading costs (fees + negative funding) as fraction of equity."""
-        funding_cost = np.minimum(self.funding_returns, 0)  # only count funding I paid
-        return float(np.sum(self.fee_returns + funding_cost))
+        funding_cost = np.minimum(self.core.funding_returns, 0)  # only count funding I paid
+        return float(np.sum(self.core.fee_returns + funding_cost))
 
 
     @property
@@ -100,45 +93,44 @@ class CostMetrics:
     @property
     def cost_to_gross_ratio(self) -> float:
         """Total costs relative to gross return."""
+        gross_return = float(np.cumprod(1 + self.position_returns)[-1] - 1)
         if self.gross_return == 0:
             return np.nan
-        return float(self.total_cost_return / abs(self.gross_return))
+        return float(self.total_cost_return / abs(gross_return))
 
 
     @property
     def pct_bars_paying_funding(self) -> float:
         """Fraction of bars where funding was a cost (negative)."""
-        return float(np.mean(self.funding_returns < 0))
+        return float(np.mean(self.core.funding_returns < 0))
 
 
     @property
     def avg_fee_per_bar(self) -> float:
         """Average fee per bar as fraction of equity."""
-        return float(np.mean(self.fee_returns))
+        return float(np.mean(self.core.fee_returns))
 
 
     @property
     def annualized_turnover(self) -> float:
         """
         Annualized turnover: sum of absolute trade fractions scaled to year."""
-        return float(np.mean(np.abs(self.trade)) * self.core.ann_factor)
+        return float(np.mean(np.abs(self.core.trade)) * self.core.ann_factor)
     
 
     @property
     def fee_drag_on_sharpe(self) -> float:
         """Reduction in Sharpe ratio caused by trading fees."""
-        returns_no_fee = self.strategy_returns + self.fee_returns
+        returns_no_fee = self.core.returns + self.fee_returns
 
-        sharpe_fee = self.return_metrics.sharpe
-        sharpe_no_fee = self.return_metrics.compute_sharpe(returns_no_fee)
-        return float(sharpe_no_fee - sharpe_fee)
+        sharpe_no_fee = _compute_sharpe(returns_no_fee)
+        return float(sharpe_no_fee - self.sharpe)
     
-    
+
     @property
     def funding_drag_on_sharpe(self) -> float:
         """Impact of funding payments on Sharpe ratio."""
-        returns_no_funding = self.strategy_returns - self.funding_returns
+        returns_no_funding = self.core.returns - self.funding_returns
 
-        sharpe_funding = self.return_metrics.sharpe
-        sharpe_no_funding = self.return_metrics.compute_sharpe(returns_no_funding)
-        return float(sharpe_no_funding - sharpe_funding)
+        sharpe_no_funding = _compute_sharpe(returns_no_funding)
+        return float(sharpe_no_funding - self.sharpe)

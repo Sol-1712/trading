@@ -1,6 +1,7 @@
 import numpy as np
 from functools import cached_property
 from scipy.stats import skew, kurtosis
+from backtester.utils import _compute_sharpe
 
 class ReturnMetrics:
     """
@@ -32,30 +33,30 @@ class ReturnMetrics:
         Args:
             core (CoreStats): Object containing primitive statistics and returns.
         """
-        self.core = core
+        self.core       = core
+
+        self.ann_factor = core.ann_factor
+        self.ann_sqrt   = np.sqrt(self.ann_factor)
 
 
-    def compute_sharpe(self, returns: np.ndarray) -> float:
-        """
-        Compute the per-bar Sharpe ratio for a series of returns.
+    @property
+    def mean(self) -> float:
+        return float(np.mean(self.core.returns))
 
-        Parameters
-        ----------
-        returns : np.ndarray
-            Per-period returns.
-
-        Returns
-        -------
-        float
-            Sharpe ratio.
-        """
-        std = np.std(returns)
-
-        if std == 0:
-            return np.nan
-
-        return float(np.mean(returns) / std)
     
+    @property
+    def sd(self) -> float:
+        return float(np.std(self.core.returns, ddof=1))
+
+
+    @property
+    def n_wins(self) -> float:
+        return float(self.core.returns[self.core.returns > 0])
+
+
+    @property
+    def n_losses(self) -> float:
+        return float(self.core.returns[self.core.returns < 0])
 
     @property
     def net_return(self) -> float:
@@ -69,9 +70,8 @@ class ReturnMetrics:
             Net return: (final equity - initial equity) / initial equity
         """
 
-        return float(self.core.equity_curve[-1] - 1)
+        return float((self.core.equity[-1] / self.core.equity[0]) - 1)
     
-
     @property
     def gross_return(self) -> float:
         """
@@ -83,7 +83,7 @@ class ReturnMetrics:
         float
             Gross return
         """
-        gross_equity = np.cumprod(1.0 + self.position_returns)
+        gross_equity = np.cumprod(1.0 + self.core.position_returns)
         return float(gross_equity[-1] - 1)
     
 
@@ -99,25 +99,25 @@ class ReturnMetrics:
         Metrics:
         - CAGR: Compound annual growth rate of the equity curve.
         """
-        n_years = self.core.n_obs / self.core.ann_factor
+        n_years = self.core.n_obs / self.ann_factor
 
         # DEFENSE
         if n_years == 0:
             return np.nan
        
-        return float(self.core.equity[-1] ** (1 / n_years) - 1)
+        return float((self.core.equity[-1] / self.core.equity[0]) ** (1 / n_years) - 1)
 
 
     @cached_property
     def sharpe(self) -> float:
         """Sharpe ratio of the strategy returns."""
-        return self.compute_sharpe(self.core.returns)
+        return _compute_sharpe(self.core.returns)
     
 
     @property
     def annualised_sharpe(self) -> float:
         """Annualised Sharpe ratio of the strategy returns."""
-        return self.sharpe * self.core.ann_sqrt
+        return self.sharpe * self.ann_sqrt
     
 
     @property
@@ -131,14 +131,14 @@ class ReturnMetrics:
         Metrics:
         - Sortino ratio: (mean return / downside standard deviation) * sqrt(annualization factor)
         """
-        threshold = 0
+        threshold = 0 # 
         downside = np.minimum(0, self.core.returns - threshold)
         dd_std = np.sqrt(np.mean(downside ** 2))
 
         if dd_std == 0:
             return np.nan
         
-        return float((self.core.mean / dd_std) * self.core.ann_sqrt)
+        return float((self.mean / dd_std) * self.ann_sqrt)
     
     @property
     def volatility(self) -> float:
@@ -152,7 +152,7 @@ class ReturnMetrics:
         - Volatility: Standard deviation of returns scaled to annualized units.
         """
 
-        return float(self.core.sd * self.core.ann_sqrt)
+        return float(self.sd * self.ann_sqrt)
         
     @property
     def avg_win_loss_ratio_expectancy(self) -> tuple[float, float, float]:
@@ -177,8 +177,8 @@ class ReturnMetrics:
         if len(returns) == 0:
             return (np.nan, np.nan, np.nan)
 
-        wins = returns[returns > 0]
-        losses = returns[returns < 0]
+        wins = self.wins
+        losses = self.losses
 
         if len(wins) == 0 or len(losses) == 0:
             return (np.nan, np.nan, np.nan)

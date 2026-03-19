@@ -1,0 +1,82 @@
+import pandas as pd
+import numpy as np
+
+SECONDS_TO_PERIODS_24_7: dict[int, tuple[str, int]] = {
+    60:     ("1min",  365 * 24 * 60),
+    300:    ("5min",  365 * 24 * 12),
+    900:    ("15min", 365 * 24 * 4),
+    3600:   ("1H",    365 * 24),      
+    86400:  ("1D",    365),
+    604800: ("1W",    52),
+}
+
+def _infer_ann_factor(
+    dtindex: pd.DatetimeIndex
+    ) -> tuple[str, float]:
+
+    """
+    Infers the annualisation factor based of timestamp index
+
+    Returns:
+    freq: bar interval frequency (defualt 1H)
+    periods: number of intervals per year
+    """
+    median_diff = pd.Series(dtindex).diff().dt.total_seconds().median()
+    freq, periods = SECONDS_TO_PERIODS_24_7.get(int(median_diff), ("1H", 365 * 24))
+    return freq, float(periods)
+
+
+def _safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+    """
+    Element-wise division with zero denominator protection.
+
+    Divides numerator by denominator element-wise, returning 0.0 for any
+    position where the denominator is zero rather than producing inf or nan.
+
+    Parameters
+    ----------
+    numerator : np.ndarray
+        Array of values to divide.
+    denominator : np.ndarray
+        Array of values to divide by. Zero elements are handled safely.
+
+    Returns
+    -------
+    np.ndarray
+        Result of numerator / denominator, with 0.0 where denominator == 0.
+    """
+    return np.divide(
+        numerator,
+        denominator,
+        out=np.zeros_like(numerator, dtype=np.float64),
+        where=denominator != 0
+    )
+
+
+def _compute_sharpe(returns: np.ndarray, ann_factor: float = None) -> float:
+    """
+    Compute the per-bar Sharpe ratio for a series of returns.
+
+    Parameters
+    ----------
+    returns : np.ndarray
+        Per-period returns.
+    ann_factor: float
+        Optional annualisation factor.
+
+    Returns
+    -------
+    float
+        Sharpe ratio.
+    """
+    std = np.std(returns, ddof=1)
+
+    if std == 0:
+        return np.nan
+    
+    sharpe = float(np.mean(returns) / std)
+
+    if ann_factor is not None:
+        sharpe *= float(np.sqrt(ann_factor))
+
+    return sharpe
