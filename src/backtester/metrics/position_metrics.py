@@ -148,7 +148,14 @@ class PositionMetrics:
         """Annualised Sharpe ratio on long bars only."""
         if len(self._long_returns) == 0:
             return np.nan
-        return float(_compute_sharpe(self._long_returns, self.core.ann_factor))
+    
+        sharpe = _compute_sharpe(
+            self._long_returns,
+            rf = self.core.rf, 
+            ann_factor=self.core.ann_factor
+            )
+        
+        return float(sharpe)
 
 
     @property
@@ -156,7 +163,13 @@ class PositionMetrics:
         """Annualised Sharpe ratio on short bars only."""
         if len(self._short_returns) == 0:
             return np.nan
-        return float(_compute_sharpe(self._short_returns, self.core.ann_factor))
+        sharpe = _compute_sharpe(
+            self._short_returns,
+            rf = self.core.rf, 
+            ann_factor=self.core.ann_factor
+            )
+        
+        return float(sharpe)
 
 
     @property

@@ -4,7 +4,6 @@ from numba import njit
 from backtester.utils import _safe_divide
 
 TAKER_FEE = 0.000550
-LEVERAGE = 1.0
 DELAY_BARS = 1 # 1-bar execution delay
 STARTING_CAPITAL = 100000.0
 # Config File
@@ -24,7 +23,6 @@ def pnl(
     capital: float = STARTING_CAPITAL,
     price_col: str = "mark_close",
     delay_bars: int = DELAY_BARS,
-    leverage: float = LEVERAGE,
     funding_col: str = "fundingRate",
 ) -> pd.DataFrame:
     """
@@ -65,12 +63,12 @@ def pnl(
 
     strategy_pnl, funding_pnl, fees, equity_lagged = pnl_loop(
         held_pos, trade, price_ret, funding,
-        capital, leverage, fee_rate, delay_bars
+        capital, fee_rate, delay_bars
     )
 
     equity = equity_lagged + strategy_pnl
     position_pnl = strategy_pnl - funding_pnl + fees # raw trade pnl
-    trade_dollars = trade * (equity_lagged * leverage) # trade size in dollars
+    trade_dollars = trade * equity_lagged # trade size in dollars
 
     returns_normalised = _safe_divide(strategy_pnl, equity_lagged)
     # Puts returns into decimal (%) form
@@ -105,7 +103,6 @@ def pnl_loop(
     price_ret,
     funding,
     capital=STARTING_CAPITAL,
-    leverage=LEVERAGE,
     fee_rate=TAKER_FEE,
     delay_bars=DELAY_BARS,
 ):
@@ -174,11 +171,10 @@ def pnl_loop(
     start = max(1, delay_bars)
     for t in range(start, n):
         equity_lagged[t] = current_equity
-        notional_t       = current_equity * leverage
 
-        funding_pnl[t] = -held_pos[t] * funding[t] * notional_t
-        fees[t]        = abs(trade[t]) * notional_t * fee_rate
-        position_pnl_t = held_pos[t] * notional_t * price_ret[t]
+        funding_pnl[t] = -held_pos[t] * funding[t] * current_equity
+        fees[t]        = abs(trade[t]) * current_equity * fee_rate
+        position_pnl_t = held_pos[t] * current_equity * price_ret[t]
 
         pnl_t           = position_pnl_t + funding_pnl[t] - fees[t]
         strategy_pnl[t] = pnl_t

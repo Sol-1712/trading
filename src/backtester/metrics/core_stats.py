@@ -11,8 +11,9 @@ class CoreStats:
         self.pnl_df = pnl_df
 
         # Convert df to raw numpy arrays
-        self.returns = pnl_df['returns_normalised'].to_numpy()
-        self.equity  = pnl_df['equity ($)'].to_numpy()
+        self.returns     = pnl_df['returns_normalised'].to_numpy()
+        self.log_returns = np.log1p(self.returns)
+        self.equity      = pnl_df['equity ($)'].to_numpy()
 
         self.held_pos     = pnl_df['held_pos (% of equity)'].to_numpy()
         self.trade        = pnl_df['trade (% of equity)'].to_numpy()
@@ -26,9 +27,12 @@ class CoreStats:
         self.n_bars = len(self.equity)                 # total time steps
         self.n_obs  = len(self.returns)                # number of return observations
 
+        self.rf  = 0.0 # Risk Free per bar (funding_rate / bars_per_year LATER)
+        self.mar = 0.0 # Minimum acceptable return per bar (TARGET RETURN)
+
         # Infer frequency and annualisation factor
         self.freq, self.ann_factor = _infer_ann_factor(self.pnl_df.index)
-
+        self.ann_sqrt = np.sqrt(self.ann_factor)
 
     @cached_property
     def equity_lagged(self):

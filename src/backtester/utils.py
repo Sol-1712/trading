@@ -10,6 +10,31 @@ SECONDS_TO_PERIODS_24_7: dict[int, tuple[str, int]] = {
     604800: ("1W",    52),
 }
 
+METRICS = {
+    "returns": [
+        "cagr", "net_return", "gross_return", "sharpe", "annualised_sharpe",
+        "sortino", "volatility", "hit_rate_all", "hit_rate_trade",
+        "avg_win_loss", "expectancy", "profit_factor", "skew", "kurtosis",
+    ],
+    "risk": [
+        "max_drawdown", "max_drawdown_duration", "avg_drawdown_duration",
+        "time_in_drawdown", "calmar", "var_95", "var_99", "cvar_95",
+        "cvar_99", "downside_deviation", "longest_losing_streak",
+    ],
+    "cost": [
+        "total_fee_return", "total_funding_return", "total_cost_return",
+        "total_fee_pct_of_net", "funding_pct_of_net", "total_cost_pct_of_net",
+        "cost_to_gross_ratio", "fee_drag_sharpe", "funding_drag_sharpe",
+        "avg_fee_per_bar", "annualised_turnover", "pct_bars_paying_funding",
+    ],
+    "position": [
+        "avg_position_size", "max_position_size", "avg_long_size",
+        "avg_short_size", "time_long", "time_short", "time_flat",
+        "time_in_market", "avg_holding_period", "largest_win", "largest_loss",
+        "long_pnl_pct", "short_pnl_pct", "long_sharpe", "short_sharpe",
+    ],
+}
+
 def _infer_ann_factor(
     dtindex: pd.DatetimeIndex
     ) -> tuple[str, float]:
@@ -53,7 +78,7 @@ def _safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
     )
 
 
-def _compute_sharpe(returns: np.ndarray, ann_factor: float = None) -> float:
+def _compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float = None) -> float:
     """
     Compute the per-bar Sharpe ratio for a series of returns.
 
@@ -61,6 +86,8 @@ def _compute_sharpe(returns: np.ndarray, ann_factor: float = None) -> float:
     ----------
     returns : np.ndarray
         Per-period returns.
+    rf : float
+        Per period risk-free rate (log-transformed).
     ann_factor: float
         Optional annualisation factor.
 
@@ -74,7 +101,8 @@ def _compute_sharpe(returns: np.ndarray, ann_factor: float = None) -> float:
     if std == 0:
         return np.nan
     
-    sharpe = float(np.mean(returns) / std)
+    excess = returns - np.log1p(rf)
+    sharpe = float(np.mean(excess) / std)
 
     if ann_factor is not None:
         sharpe *= float(np.sqrt(ann_factor))

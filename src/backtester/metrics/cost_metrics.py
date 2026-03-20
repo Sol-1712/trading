@@ -38,32 +38,44 @@ class CostMetrics:
 
     @cached_property
     def net_return(self) -> float:
-        return float((self.core.equity[-1] / self.core.equity[0]) - 1)
+        """
+        Arithmetic sum of per-bar net returns.
+        Used internally for cost ratio calculations only.
+        NOT the true compounded return — see ReturnMetrics.net_return for that.
+        """
+        return float(np.sum(self.core.returns))
+    
+
+    @cached_property
+    def gross_return(self) -> float:
+        return float(np.sum(self.core.position_returns))
 
 
     @cached_property
     def sharpe(self) -> float:
         """Sharpe ratio of the strategy returns."""
-        return _compute_sharpe(self.core.returns)
+        return _compute_sharpe(self.core.returns, self.core.rf)
     
 
     @cached_property
-    def total_fee_return(self) -> float:
-        """Total fees paid as fraction of equity."""
+    def total_fee_drag(self) -> float:
+        """Cumulative fee drag as sum of per-bar fee costs normalised by equity."""
         return float(np.sum(self.core.fee_returns))
 
 
     @cached_property
-    def total_funding_return(self) -> float:
-        """Total funding PnL as fraction of equity (signed)."""
+    def total_funding_drag(self) -> float:
+        """
+        Cumulative funding drag as sum of per-bar funding normalised by equity. 
+        Signed — positive means funding helped.
+        """
         return float(np.sum(self.core.funding_returns))
 
 
     @cached_property
-    def total_cost_return(self) -> float:
-        """Total trading costs (fees + negative funding) as fraction of equity."""
-        funding_cost = np.minimum(self.core.funding_returns, 0)  # only count funding I paid
-        return float(np.sum(self.core.fee_returns + funding_cost))
+    def total_cost_drag(self) -> float:
+        """Total cost drag — fees plus negative funding."""
+        return float(np.sum(self.core.fee_returns - self.core.funding_returns))
 
 
     @property
@@ -71,7 +83,7 @@ class CostMetrics:
         """Fees as fraction of absolute net return."""
         if self.net_return == 0:
             return np.nan
-        return float(self.total_fee_return / abs(self.net_return))
+        return float(self.total_fee_drag / abs(self.net_return))
 
 
     @property
@@ -79,7 +91,7 @@ class CostMetrics:
         """Funding as fraction of absolute net return."""
         if self.net_return == 0:
             return np.nan
-        return float(self.total_funding_return / abs(self.net_return))
+        return float(self.total_funding_drag / abs(self.net_return))
 
 
     @property
@@ -87,16 +99,15 @@ class CostMetrics:
         """Total costs as fraction of absolute net return."""
         if self.net_return == 0:
             return np.nan
-        return float(self.total_cost_return / abs(self.net_return))
+        return float(self.total_cost_drag / abs(self.net_return))
 
 
     @property
     def cost_to_gross_ratio(self) -> float:
         """Total costs relative to gross return."""
-        gross_return = float(np.cumprod(1 + self.position_returns)[-1] - 1)
         if self.gross_return == 0:
             return np.nan
-        return float(self.total_cost_return / abs(gross_return))
+        return float(self.total_cost_drag / abs(self.gross_return))
 
 
     @property
@@ -121,16 +132,16 @@ class CostMetrics:
     @property
     def fee_drag_on_sharpe(self) -> float:
         """Reduction in Sharpe ratio caused by trading fees."""
-        returns_no_fee = self.core.returns + self.fee_returns
+        returns_no_fee = self.core.returns + self.core.fee_returns
 
-        sharpe_no_fee = _compute_sharpe(returns_no_fee)
+        sharpe_no_fee = _compute_sharpe(returns_no_fee, self.core.rf)
         return float(sharpe_no_fee - self.sharpe)
     
 
     @property
     def funding_drag_on_sharpe(self) -> float:
         """Impact of funding payments on Sharpe ratio."""
-        returns_no_funding = self.core.returns - self.funding_returns
+        returns_no_funding = self.core.returns - self.core.funding_returns
 
-        sharpe_no_funding = _compute_sharpe(returns_no_funding)
+        sharpe_no_funding = _compute_sharpe(returns_no_funding, self.core.rf)
         return float(sharpe_no_funding - self.sharpe)

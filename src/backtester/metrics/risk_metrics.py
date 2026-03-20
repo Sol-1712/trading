@@ -7,6 +7,8 @@ class RiskMetrics:
     Computes risk-based metrics from a CoreStats object.
 
     This class provides key metrics:
+    - Volatility
+    - Calmar ratio
     - Max drawdown
     - Time in drawdown
     - Max drawdown duration
@@ -27,7 +29,28 @@ class RiskMetrics:
         Args:
             core (CoreStats): Object containing primitive statistics and returns.
         """
-        self.core       = core
+        self.core        = core
+
+
+    @property
+    def sd(self) -> float:
+        """ Per bar standard deviation. """
+        return float(np.std(self.core.log_returns, ddof=1))
+
+
+    @property
+    def volatility(self) -> float:
+        """
+        Annualized volatility of returns.
+
+        Returns:
+            float: Annualized standard deviation of returns.
+
+        Metrics:
+        - Volatility: Standard deviation of returns scaled to annualized units.
+        """
+
+        return float(self.sd * self.core.ann_sqrt)
 
 
     @property
@@ -118,7 +141,7 @@ class RiskMetrics:
 
         cagr = float((self.core.equity[-1] / self.core.equity[0]) ** (1 / n_years) - 1)
 
-        return float(cagr / abs(self.mdd))
+        return float(cagr / abs(self.max_drawdown))
     
 
     @property
@@ -129,8 +152,7 @@ class RiskMetrics:
         Returns:
             - float: Annualised downside deviation
         """
-        threshold = 0
-        downside = np.minimum(0, self.core.returns - threshold)
+        downside = np.minimum(0, self.core.returns - self.core.mar)
         dd_std = np.sqrt(np.mean(downside ** 2))
 
         return float(dd_std * self.core.ann_sqrt)
@@ -177,9 +199,11 @@ class RiskMetrics:
         Value at Risk (VaR) at given confidence level.
         Returns positive loss magnitude.
         """
-        if len(self.core.returns) == 0:
+        if len(self.core.log_returns) == 0:
             return np.nan
-        return float(np.percentile(self.core.returns, alpha * 100))
+        
+
+        return float(-np.percentile(self.core.log_returns, alpha * 100))
 
 
     def cvar(self, alpha: float = 0.05) -> float:
@@ -187,16 +211,16 @@ class RiskMetrics:
         Conditional VaR (CVaR) / Expected Shortfall at given confidence.
         Returns positive average loss beyond VaR.
         """
-        if len(self.core.returns) == 0:
+        if len(self.core.log_returns) == 0:
             return np.nan
 
-        var_alpha = np.percentile(self.core.returns, alpha * 100)
-        tail_losses = self.core.returns[self.core.returns <= var_alpha]
+        var_alpha = np.percentile(self.core.log_returns, alpha * 100)
+        tail_losses = self.core.log_returns[self.core.log_returns <= var_alpha]
 
         if len(tail_losses) == 0:
             return 0.0
 
-        return float(np.mean(tail_losses))
+        return float(-np.mean(tail_losses))
     
 
     @property

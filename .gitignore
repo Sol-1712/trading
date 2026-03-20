@@ -22,6 +22,7 @@ data/
 
 TODO.txt
 WATCH.txt
+NEXT.txt
 research/test1.ipynb
 .venv/
 *.egg-info/

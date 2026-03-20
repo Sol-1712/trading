@@ -75,7 +75,7 @@ def load_partitioned_parquet(
     ----------
     base_path : root data directory
     start : start datetime (inclusive)
-    end : end datetime (inclusive)
+    end : end datetime (exclusive)
     columns : subset of columns to load
 
     Returns
@@ -136,6 +136,6 @@ def load_partitioned_parquet(
     if start:
         result = result[result.index >= start]
     if end:
-        result = result[result.index <= end]
+        result = result[result.index < end]
 
     return result

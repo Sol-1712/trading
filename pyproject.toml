@@ -22,5 +22,5 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["backtester*", "data*"]
+include = ["backtester*", "data_utils*"]
 

@@ -4,9 +4,9 @@ from pybit.unified_trading import HTTP
 import pandas as pd
 import key
 
-from utils.fetch import fetch_funding_rate, fetch_last_ohlcv, fetch_mark_ohlc
-from utils.io import save_partitioned_parquet, load_partitioned_parquet
-from utils.paths import make_data_path
+from data_utils.fetch import fetch_funding_rate, fetch_last_ohlcv, fetch_mark_ohlc
+from data_utils.io import save_partitioned_parquet, load_partitioned_parquet
+from data_utils.paths import make_data_path
 
 ### Requires a full rewrite with threading logging, more rigorous
 ### Call multiple symbols at once rather than pagination

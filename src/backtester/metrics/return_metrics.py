@@ -13,14 +13,12 @@ class ReturnMetrics:
     - CAGR (Compound Annual Growth Rate)
     - Sharpe ratio (Per bar/Annualised)
     - Sortino ratio
-    - Volatility
     - Average win/loss ratio
     - Expectancy
     - Hit rate
     - Profit factor
     - Skew
     - Kurtosis
-    - Net return
 
     Attributes:
         core (CoreStats): Precomputed core statistics and returns from PnL.
@@ -35,28 +33,29 @@ class ReturnMetrics:
         """
         self.core       = core
 
-        self.ann_factor = core.ann_factor
-        self.ann_sqrt   = np.sqrt(self.ann_factor)
-
 
     @property
     def mean(self) -> float:
+        """ Per bar mean return. """
         return float(np.mean(self.core.returns))
 
     
-    @property
-    def sd(self) -> float:
-        return float(np.std(self.core.returns, ddof=1))
+
 
 
     @property
-    def n_wins(self) -> float:
-        return float(self.core.returns[self.core.returns > 0])
+    def wins(self) -> np.ndarray:
+        """Array of positive returns."""
+        r = self.core.returns
+        return r[r > self.core.mar]
 
 
     @property
-    def n_losses(self) -> float:
-        return float(self.core.returns[self.core.returns < 0])
+    def losses(self) -> np.ndarray:
+        """Array of negative returns."""
+        r = self.core.returns
+        return r[r < self.core.mar]
+
 
     @property
     def net_return(self) -> float:
@@ -99,7 +98,7 @@ class ReturnMetrics:
         Metrics:
         - CAGR: Compound annual growth rate of the equity curve.
         """
-        n_years = self.core.n_obs / self.ann_factor
+        n_years = self.core.n_obs / self.core.ann_factor
 
         # DEFENSE
         if n_years == 0:
@@ -111,13 +110,13 @@ class ReturnMetrics:
     @cached_property
     def sharpe(self) -> float:
         """Sharpe ratio of the strategy returns."""
-        return _compute_sharpe(self.core.returns)
+        return _compute_sharpe(self.core.returns, self.core.rf)
     
 
     @property
     def annualised_sharpe(self) -> float:
         """Annualised Sharpe ratio of the strategy returns."""
-        return self.sharpe * self.ann_sqrt
+        return self.sharpe * self.core.ann_sqrt
     
 
     @property
@@ -131,29 +130,19 @@ class ReturnMetrics:
         Metrics:
         - Sortino ratio: (mean return / downside standard deviation) * sqrt(annualization factor)
         """
-        threshold = 0 # 
-        downside = np.minimum(0, self.core.returns - threshold)
+        log_mar = np.log1p(self.core.mar)
+        excess = self.core.log_returns - log_mar
+        downside = np.minimum(0, excess)
         dd_std = np.sqrt(np.mean(downside ** 2))
 
         if dd_std == 0:
             return np.nan
         
-        return float((self.mean / dd_std) * self.ann_sqrt)
-    
-    @property
-    def volatility(self) -> float:
-        """
-        Annualized volatility of returns.
-
-        Returns:
-            float: Annualized standard deviation of returns.
-
-        Metrics:
-        - Volatility: Standard deviation of returns scaled to annualized units.
-        """
-
-        return float(self.sd * self.ann_sqrt)
+        excess = self.core.returns - self.core.mar
         
+        return float(((np.mean(excess)) / dd_std) * self.core.ann_sqrt)
+            
+
     @property
     def avg_win_loss_ratio_expectancy(self) -> tuple[float, float, float]:
         """
@@ -193,6 +182,7 @@ class ReturnMetrics:
 
         return (avg_win_loss_ratio, expectancy, hit_rate)
     
+
     @property
     def profit_factor(self) -> float:
         """
@@ -213,6 +203,7 @@ class ReturnMetrics:
         
         return float(gross_profit / gross_loss)
     
+
     @property
     def skew(self) -> float:
         """
@@ -227,8 +218,9 @@ class ReturnMetrics:
         Metrics:
         - Skew
         """
-        return float(skew(self.core.returns, bias=False))
+        return float(skew(self.core.log_returns, bias=False))
     
+
     @property
     def kurtosis(self) -> float:
         """
@@ -243,5 +235,5 @@ class ReturnMetrics:
         Metrics:
         - Kurtosis
         """
-        return float(kurtosis(self.core.returns, bias=False))
+        return float(kurtosis(self.core.log_returns, bias=False))
     
