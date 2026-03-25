@@ -1,0 +1,9 @@
+symbol:       BTCUSDT
+interval:     60
+start:        01/01/2025
+end:          01/01/2026
+capital:      100000
+fee_rate:     0.000550
+delay_bars:   1
+price_column: mark_close
+leverage_max: 100

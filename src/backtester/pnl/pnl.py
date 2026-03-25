@@ -3,10 +3,7 @@ import pandas as pd
 from numba import njit
 from backtester.utils import _safe_divide
 
-TAKER_FEE = 0.000550
-DELAY_BARS = 1 # 1-bar execution delay
-STARTING_CAPITAL = 100000.0
-# Config File
+
 
 # assuming execution at the close of bar t (i.e. the same price that triggered the signal), 
 # which is slightly optimistic — in reality there's always some slippage between signal generation and fill.
@@ -15,15 +12,14 @@ STARTING_CAPITAL = 100000.0
 # Fill at open[t+1]?
 # price_ret[t] = (close[t] - open[t]) / open[t]  # shifted by delay
 
-### DOLLAR RETURNS
-def pnl(
+
+def run_backtest(
     data_df: pd.DataFrame,
-    signals: pd.Series | np.ndarray,
-    fee_rate: float = TAKER_FEE,
-    capital: float = STARTING_CAPITAL,
-    price_col: str = "mark_close",
-    delay_bars: int = DELAY_BARS,
-    funding_col: str = "fundingRate",
+    positions: pd.Series | np.ndarray,
+    fee_rate: float,
+    capital: float,
+    price_col: str,
+    delay_bars: int,
 ) -> pd.DataFrame:
     """
     Assumptions:
@@ -38,6 +34,8 @@ def pnl(
     - strategy_pnl ($)
     """
 
+    funding_col = "fundingRate"
+
     if price_col not in data_df.columns:
         raise ValueError(f"Missing column: {price_col}")
     if funding_col not in data_df.columns:
@@ -48,12 +46,12 @@ def pnl(
     prices = data_df[price_col].astype("float64").to_numpy()
     funding  = data_df[funding_col].astype("float64").to_numpy()
 
-    pos = np.asarray(signals, dtype="float64")
+    pos = np.asarray(positions, dtype="float64")
     if len(pos) != len(prices):
         raise ValueError(f"pos length {len(pos)} != data length {len(prices)}")
     
     # Held position with explicit delay
-    held_pos = np.roll(signals, delay_bars) # Fraction of capital 
+    held_pos = np.roll(positions, delay_bars) # Fraction of capital 
     held_pos[:delay_bars] = 0.0
 
     trade = np.diff(held_pos, prepend=0.0)  # % of equity being traded
@@ -61,7 +59,7 @@ def pnl(
     price_ret = np.zeros_like(prices)
     price_ret[1:] = (prices[1:] - prices[:-1]) / prices[:-1]
 
-    strategy_pnl, funding_pnl, fees, equity_lagged = pnl_loop(
+    strategy_pnl, funding_pnl, fees, equity_lagged = _pnl_loop(
         held_pos, trade, price_ret, funding,
         capital, fee_rate, delay_bars
     )
@@ -78,7 +76,7 @@ def pnl(
     out = pd.DataFrame(
         {
             "asset_change (%)": price_ret,
-            "signal (% of equity)": pos,
+            "new_position (% of equity)": pos,
             "held_pos (% of equity)": held_pos,
             "trade (% of equity)": trade,
             "trade_dollars ($)": trade_dollars,
@@ -97,14 +95,14 @@ def pnl(
 
  
 @njit
-def pnl_loop(
+def _pnl_loop(
     held_pos,
     trade,
     price_ret,
     funding,
-    capital=STARTING_CAPITAL,
-    fee_rate=TAKER_FEE,
-    delay_bars=DELAY_BARS,
+    capital,
+    fee_rate,
+    delay_bars,
 ):
     """
     Compute strategy PnL, with dynamic capital sizing.

@@ -29,7 +29,7 @@ class RiskMetrics:
         Args:
             core (CoreStats): Object containing primitive statistics and returns.
         """
-        self.core        = core
+        self.core = core
 
 
     @property

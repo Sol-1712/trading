@@ -1,46 +1,62 @@
 import numpy as np
 import pandas as pd
 
-from backtester.data_loader import load_backtest_data
-from backtester.pnl import pnl
+from backtester.data.data_loader import prepare_data
+from backtester.pnl.pnl import run_backtest
 from backtester.metrics.performance_report import PerformanceReport
+from backtester.config import Config
+from backtester.metrics.display import display_report
 
 
 class BacktestRunner:
     """
     """
 
-    def __init__(self, config: dict):
+    def __init__(self, config: Config):
         """
         Parameters
         ----------
-        config : dict
+        config : Config object
             Must contain: symbol, interval, start, end,
                          capital, leverage, fee_rate, delay_bars
         """
-### Leverage is just exchange cap -> 100
-        self.config = config
 
-        self.data   = None
-        self.pnl_df = None
-        self.report = None
+        self.config  = config
 
+        self.data    = None
+        self.signals = None
+        self.pnl_df  = None
+        self.report  = None
+   
 
-    def load_data(self, cols: list[str] = ["mark_close"]):
+    def load_data(self, strategy_cols: list[str] | None = None):
         """ Load and format market data"""
-        self.data = load_backtest_data()
+        self.data = prepare_data(self.config, strategy_cols)
 
 
-    def run(self, signals: np.ndarray):
+
+    ### FUNCTION THAT GETS SIGNALS
+
+
+
+    def run_backtest(self):
         if self.data is None:
-            raise RuntimeError("Call load_data() before run()")
-
-        self.pnl_df = pnl(
+            raise RuntimeError("Call load_data() before running")
+        
+        if self.signals is None:
+            raise RuntimeError("Call generate_signals() before running")
+        
+        self.pnl_df = run_backtest(
             data_df    = self.data,
-            signals    = signals,
-            capital    = self.config["capital"],
-            leverage   = self.config["leverage"],
-            fee_rate   = self.config["fee_rate"],
-            delay_bars = self.config["delay_bars"],
+            positions  = self.signals,
+            capital    = self.config.capital,
+            fee_rate   = self.config.fee_rate,
+            delay_bars = self.config.delay_bars,
+            price_col  = self.config.price_column
         )
+        
+
+
+    def generate_report(self):
         self.report = PerformanceReport(self.pnl_df)
+        display_report(self.report)

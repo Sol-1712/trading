@@ -3,7 +3,8 @@ import numpy as np
 from functools import cached_property
 from backtester.utils import _infer_ann_factor, _safe_divide
 
-
+# Potentially pass an asset config file to set things like rf, mar, etc
+# Or use the dataframe appendix thing
 class CoreStats:
 
     def __init__(self, pnl_df):
@@ -12,7 +13,6 @@ class CoreStats:
 
         # Convert df to raw numpy arrays
         self.returns     = pnl_df['returns_normalised'].to_numpy()
-        self.log_returns = np.log1p(self.returns)
         self.equity      = pnl_df['equity ($)'].to_numpy()
 
         self.held_pos     = pnl_df['held_pos (% of equity)'].to_numpy()
@@ -24,6 +24,8 @@ class CoreStats:
         self.fee_pnl      = pnl_df["fees ($)"].to_numpy()
 
         # Basic stats
+        self.log_returns = np.log1p(self.returns)
+        
         self.n_bars = len(self.equity)                 # total time steps
         self.n_obs  = len(self.returns)                # number of return observations
 
@@ -33,6 +35,7 @@ class CoreStats:
         # Infer frequency and annualisation factor
         self.freq, self.ann_factor = _infer_ann_factor(self.pnl_df.index)
         self.ann_sqrt = np.sqrt(self.ann_factor)
+
 
     @cached_property
     def equity_lagged(self):

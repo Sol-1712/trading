@@ -63,9 +63,10 @@ def save_partitioned_parquet(
 
 def load_partitioned_parquet(
     path: str | Path,
+    cols: list[str] | None = None,
     start: str | datetime | None = None,
     end: str | datetime | None = None,
-    columns: list[str] | None = None,
+
 ) -> pd.DataFrame:
     """
     Load partitioned parquet dataset with optional date filtering
@@ -118,7 +119,11 @@ def load_partitioned_parquet(
             if not file_path.exists():
                 continue
 
-            df = pd.read_parquet(file_path, columns=columns)
+            if cols:
+                df = pd.read_parquet(file_path, columns=cols)
+            else:
+                df = pd.read_parquet(file_path)
+                
             dfs.append(df)
 
     if not dfs:
