@@ -35,7 +35,7 @@ METRICS = {
     ],
 }
 
-def _infer_ann_factor(
+def infer_ann_factor(
     dtindex: pd.DatetimeIndex
     ) -> tuple[str, float]:
 
@@ -51,7 +51,7 @@ def _infer_ann_factor(
     return freq, float(periods)
 
 
-def _safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
+def safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
     """
     Element-wise division with zero denominator protection.
 
@@ -78,7 +78,7 @@ def _safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
     )
 
 
-def _compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float = None) -> float:
+def compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float = None) -> float:
     """
     Compute the per-bar Sharpe ratio for a series of returns.
 

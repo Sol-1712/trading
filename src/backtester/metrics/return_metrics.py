@@ -1,7 +1,7 @@
 import numpy as np
 from functools import cached_property
 from scipy.stats import skew, kurtosis
-from backtester.utils import _compute_sharpe
+from backtester.utils import compute_sharpe
 
 class ReturnMetrics:
     """
@@ -110,7 +110,7 @@ class ReturnMetrics:
     @cached_property
     def sharpe(self) -> float:
         """Sharpe ratio of the strategy returns."""
-        return _compute_sharpe(self.core.returns, self.core.rf)
+        return compute_sharpe(self.core.returns, self.core.rf)
     
 
     @property

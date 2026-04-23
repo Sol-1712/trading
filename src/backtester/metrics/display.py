@@ -1,9 +1,10 @@
 import numpy as np
 import pandas as pd
+from backtester.metrics.performance_report import PerformanceReport
 from IPython.display import display
 
 
-def display_report(report) -> None:
+def display_report(report: PerformanceReport, symbol: str = None) -> None:
     """
     Displays a formatted PerformanceReport in a Jupyter notebook.
 
@@ -45,12 +46,12 @@ def display_report(report) -> None:
 
     sections = [
         _make_df("Core", {
-
+            "Symbol":           str(symbol if symbol else None),
+            "Interval":         cr.freq,
             "Start":            str(cr.pnl_df.index[0].strftime("%Y-%m-%d %H:%M")),
             "End":              str(cr.pnl_df.index[-1].strftime("%Y-%m-%d %H:%M")),
             "Duration":         f"{(cr.pnl_df.index[-1] - cr.pnl_df.index[0]).days + 1} days",
-            "Interval":         cr.freq,
-            "Bars":             f"{cr.n_bars} bars",
+            "Bars":             f"{cr.n_bars}",
             "Starting Capital": _fmt_dollar(cr.equity[0]),
             "Final Capital":    _fmt_dollar(cr.equity[-1])
 

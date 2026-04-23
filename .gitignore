@@ -10,8 +10,11 @@ __pycache__/
 # Editor configs
 .vscode/
 
-# Ignore strategy notes
+# Ignore strategies
 docs/strategy_notes/strategy_ideas.txt
+src/strategy_engine/strategies
+strategy_engine_claude.py
+
 
 # Data
 data/
@@ -45,3 +48,4 @@ Thumbs.db
 
 # Logs
 *.log
+

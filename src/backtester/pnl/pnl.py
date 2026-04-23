@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from numba import njit
-from backtester.utils import _safe_divide
+from backtester.utils import safe_divide
 
 
 
@@ -68,25 +68,22 @@ def run_backtest(
     position_pnl = strategy_pnl - funding_pnl + fees # raw trade pnl
     trade_dollars = trade * equity_lagged # trade size in dollars
 
-    returns_normalised = _safe_divide(strategy_pnl, equity_lagged)
+    returns_normalised = safe_divide(strategy_pnl, equity_lagged)
     # Puts returns into decimal (%) form
 
     returns_normalised[0] = 0.0
 
     out = pd.DataFrame(
         {
-            "asset_change (%)": price_ret,
-            "new_position (% of equity)": pos,
             "held_pos (% of equity)": held_pos,
             "trade (% of equity)": trade,
-            "trade_dollars ($)": trade_dollars,
             "fees ($)": fees,
             "funding_pnl ($)": funding_pnl,
             "position_pnl ($)": position_pnl,
             "strategy_pnl ($)": strategy_pnl,
             "returns_normalised": returns_normalised,
             "equity ($)": equity,
-            "equity_lagged ($)": equity_lagged
+
         },  
         index=data_df.index
     )
@@ -179,3 +176,4 @@ def _pnl_loop(
         current_equity += pnl_t
 
     return strategy_pnl, funding_pnl, fees, equity_lagged
+#hi emily is here bye bish 

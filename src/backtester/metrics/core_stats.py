@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from functools import cached_property
-from backtester.utils import _infer_ann_factor, _safe_divide
+from backtester.utils import infer_ann_factor, safe_divide
 
 # Potentially pass an asset config file to set things like rf, mar, etc
 # Or use the dataframe appendix thing
@@ -33,7 +33,7 @@ class CoreStats:
         self.mar = 0.0 # Minimum acceptable return per bar (TARGET RETURN)
 
         # Infer frequency and annualisation factor
-        self.freq, self.ann_factor = _infer_ann_factor(self.pnl_df.index)
+        self.freq, self.ann_factor = infer_ann_factor(self.pnl_df.index)
         self.ann_sqrt = np.sqrt(self.ann_factor)
 
 
@@ -48,17 +48,17 @@ class CoreStats:
     # Return Space
     @cached_property
     def position_returns(self):
-        return _safe_divide(self.position_pnl, self.equity_lagged)
+        return safe_divide(self.position_pnl, self.equity_lagged)
 
 
     @cached_property
     def fee_returns(self):
-        return _safe_divide(self.fee_pnl, self.equity_lagged)
+        return safe_divide(self.fee_pnl, self.equity_lagged)
 
 
     @cached_property
     def funding_returns(self):
-        return _safe_divide(self.funding_pnl, self.equity_lagged)
+        return safe_divide(self.funding_pnl, self.equity_lagged)
     
 
     # Drawdowns
@@ -70,4 +70,4 @@ class CoreStats:
     @cached_property
     def drawdown(self):
         gap = self.equity - self.running_peak
-        return _safe_divide(gap, self.running_peak)
+        return safe_divide(gap, self.running_peak)

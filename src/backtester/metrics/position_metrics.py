@@ -1,6 +1,6 @@
 import numpy as np
 from functools import cached_property
-from backtester.utils import _compute_sharpe
+from backtester.utils import compute_sharpe
 
 
 # Avg Leverage Used ? 
@@ -149,7 +149,7 @@ class PositionMetrics:
         if len(self._long_returns) == 0:
             return np.nan
     
-        sharpe = _compute_sharpe(
+        sharpe = compute_sharpe(
             self._long_returns,
             rf = self.core.rf, 
             ann_factor=self.core.ann_factor
@@ -163,7 +163,7 @@ class PositionMetrics:
         """Annualised Sharpe ratio on short bars only."""
         if len(self._short_returns) == 0:
             return np.nan
-        sharpe = _compute_sharpe(
+        sharpe = compute_sharpe(
             self._short_returns,
             rf = self.core.rf, 
             ann_factor=self.core.ann_factor

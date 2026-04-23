@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from backtester.data.data_loader import prepare_data
+from backtester.data_loader import prepare_data
 from backtester.pnl.pnl import run_backtest
 from backtester.metrics.performance_report import PerformanceReport
 from backtester.config import Config
@@ -20,7 +20,6 @@ class BacktestRunner:
             Must contain: symbol, interval, start, end,
                          capital, leverage, fee_rate, delay_bars
         """
-
         self.config  = config
 
         self.data    = None
@@ -29,14 +28,16 @@ class BacktestRunner:
         self.report  = None
    
 
-    def load_data(self, strategy_cols: list[str] | None = None):
-        """ Load and format market data"""
-        self.data = prepare_data(self.config, strategy_cols)
-
+    def load_data(self):
+        """ Load requested market data as a pandas dataframe.
+        Currently loads all columns.
+        """
+        self.data = prepare_data(self.config)
 
 
     ### FUNCTION THAT GETS SIGNALS
-
+    def generate_signals(self):
+        pass
 
 
     def run_backtest(self):
@@ -56,7 +57,10 @@ class BacktestRunner:
         )
         
 
-
     def generate_report(self):
         self.report = PerformanceReport(self.pnl_df)
-        display_report(self.report)
+        display_report(self.report, symbol = self.config.symbol)
+
+
+    def generate_plots(self):
+        pass
