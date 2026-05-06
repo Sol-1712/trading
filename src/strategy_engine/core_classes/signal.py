@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from .enums import SignalDirection
+from strategy_engine.core_classes import SignalDirection
+from typing import Any
 
 
 @dataclass
@@ -9,4 +10,4 @@ class Signal:
     strength:  float
     timestamp: datetime
     source:    str  = ""
-    metadata:  dict[str, any] = field(default_factory=dict)
+    metadata:  dict[str, Any] = field(default_factory=dict)

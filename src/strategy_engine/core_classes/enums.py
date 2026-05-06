@@ -1,6 +1,5 @@
-from enum import Enum, auto
 from __future__ import annotations
-
+from enum import Enum, auto
 
 
 class SignalDirection(Enum):

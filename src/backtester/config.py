@@ -1,4 +1,5 @@
 import yaml
+from typing import Any
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
@@ -36,7 +37,7 @@ class Config:
             raise ValueError("leverage must be >= 1.0")
 
 
-def load_config(overrides: dict = None, file: str = "default_config.yaml")-> Config:
+def load_config(overrides: dict[str, Any] | None, file: str = "default_config.yaml")-> Config:
     """
     Load backtest config from YAML with optional overrides.
 

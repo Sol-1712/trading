@@ -1,8 +1,11 @@
 from abc import ABC, abstractmethod
 import pandas as pd
 
+
+
 class Feature(ABC):
     
+
     @property
     @abstractmethod
     def name(self) -> str:

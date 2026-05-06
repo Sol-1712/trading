@@ -2,15 +2,16 @@ import numpy as np
 import pandas as pd
 
 from backtester.data_loader import prepare_data
-from backtester.pnl.pnl import run_backtest
+from backtester.engine.pnl import run_backtest
 from backtester.metrics.performance_report import PerformanceReport
 from backtester.config import Config
 from backtester.metrics.display import display_report
 
-
+### This should be combinded into a run function, that does all these things
 class BacktestRunner:
     """
     """
+
 
     def __init__(self, config: Config):
         """
@@ -26,7 +27,11 @@ class BacktestRunner:
         self.signals = None
         self.pnl_df  = None
         self.report  = None
-   
+
+
+    def run(self):
+        print('test')
+
 
     def load_data(self):
         """ Load requested market data as a pandas dataframe.

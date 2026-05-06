@@ -5,9 +5,8 @@ class FeatureRegistry:
     """
     Holds registered Feature instances, keyed by name.
     Strategies register what they need.
-    FeatureManager uses this to compute.
+    Registry calls each stored Feature's compute function.
     """
-
 
     def __init__(self):
         self._registry: dict[str, Feature] = {}

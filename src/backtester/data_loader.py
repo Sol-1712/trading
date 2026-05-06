@@ -51,6 +51,8 @@ def _load_backtest_data(config: Config) -> pd.DataFrame:
     df_merge['fundingRate'] = df_merge['fundingRate'].fillna(0)
     df_merge = df_merge.sort_index()
 
+    df_merge.rename(columns={config.price_column: 'price'})
+
     return df_merge
 
 
