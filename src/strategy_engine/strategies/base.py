@@ -12,7 +12,6 @@ class StrategyBase(ABC, Generic[ConfigT]):
         Abstract base class for strategies
         
         """
-
         self.config = config
 
 
@@ -27,7 +26,6 @@ class StrategyBase(ABC, Generic[ConfigT]):
 
 
 
-
-@dataclass
+@dataclass(frozen=True)
 class StrategyConfig:
     strategy_id: str

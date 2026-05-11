@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from strategy_engine.core_classes import SignalDirection
+from strategy_engine.core import SignalDirection
 from typing import Any
 
 

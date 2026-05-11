@@ -1,4 +1,3 @@
-from .strategy_base import StrategyBase, StrategyConfig, ConfigT
-from .directional_base import DirectionalStrategy
+from .base import StrategyBase, StrategyConfig, ConfigT
 
-__all__ = ['StrategyBase', 'DirectionalStrategy', 'ConfigT', 'StrategyConfig']
+__all__ = ['StrategyBase', 'ConfigT', 'StrategyConfig']

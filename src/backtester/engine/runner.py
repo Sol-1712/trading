@@ -4,8 +4,10 @@ import pandas as pd
 from backtester.data_loader import prepare_data
 from backtester.engine.pnl import run_backtest
 from backtester.metrics.performance_report import PerformanceReport
-from backtester.config import Config
+from backtester.engine.config import Config
 from backtester.metrics.display import display_report
+from strategy_engine.strategies import StrategyBase
+from strategy_engine.features import FeatureRegistry
 
 ### This should be combinded into a run function, that does all these things
 class BacktestRunner:
@@ -13,7 +15,7 @@ class BacktestRunner:
     """
 
 
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, strategy = StrategyBase):
         """
         Parameters
         ----------
@@ -21,7 +23,9 @@ class BacktestRunner:
             Must contain: symbol, interval, start, end,
                          capital, leverage, fee_rate, delay_bars
         """
-        self.config  = config
+        self.config    = config
+        self.strategy  = self.strategy
+        self.registry  = FeatureRegistry()
 
         self.data    = None
         self.signals = None
@@ -30,10 +34,13 @@ class BacktestRunner:
 
 
     def run(self):
-        print('test')
+        self._load_data()
+        self._compute_features()
+        self._generate_signals()
+        self._generate_report()
 
 
-    def load_data(self):
+    def _load_data(self):
         """ Load requested market data as a pandas dataframe.
         Currently loads all columns.
         """
@@ -41,7 +48,7 @@ class BacktestRunner:
 
 
     ### FUNCTION THAT GETS SIGNALS
-    def generate_signals(self):
+    def _generate_signals(self):
         pass
 
 
@@ -62,8 +69,9 @@ class BacktestRunner:
         )
         
 
-    def generate_report(self):
-        self.report = PerformanceReport(self.pnl_df)
+    def _generate_report(self):
+        if self.report is None:
+            self.report = PerformanceReport(self.pnl_df)
         display_report(self.report, symbol = self.config.symbol)
 
 

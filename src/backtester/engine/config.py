@@ -37,7 +37,7 @@ class Config:
             raise ValueError("leverage must be >= 1.0")
 
 
-def load_config(overrides: dict[str, Any] | None, file: str = "default_config.yaml")-> Config:
+def load_config(overrides: dict[str, Any] | None, file: str = "default_config.yaml") -> Config:
     """
     Load backtest config from YAML with optional overrides.
 
@@ -52,6 +52,10 @@ def load_config(overrides: dict[str, Any] | None, file: str = "default_config.ya
     -------
     Config
         Validated Config object.
+        Required attributes:
+            "symbol", "interval", "start", "end",
+            "capital", "fee_rate", "delay_bars", "price_column", 
+            "leverage_max",
     """
 
     config_path = DEFAULT_PATH / file

@@ -1,9 +1,13 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 import pandas as pd
 from strategy_engine.features import Feature
+from enum import Enum
 
-
-
+class MAType(str, Enum):
+    SMA = "sma"
+    EMA = "ema"
+    WMA = "wma"
 
 
 class MovingAverage(Feature, ABC):
@@ -29,3 +33,25 @@ class MovingAverage(Feature, ABC):
     @abstractmethod
     def _compute(self, series: pd.Series) -> pd.Series:
         pass
+
+
+class SMA(MovingAverage):
+
+    @property
+    def name(self) -> str:
+        return f'sma_{self.period}'
+    
+
+    def _compute(self, series: pd.Series) -> pd.Series:
+        return series.rolling(self.period).mean()
+
+
+class EMA(MovingAverage):
+
+    @property
+    def name(self) -> str:
+        return f'ema_{self.period}'
+    
+
+    def _compute(self, series: pd.Series) -> pd.Series:
+        return series.ewm(span=self.period, adjust=False).mean()

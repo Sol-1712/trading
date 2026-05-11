@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
-import pandas as pd
 from typing import Optional
 from datetime import datetime
-from strategy_engine.core_classes.enums import SignalDirection
+import pandas as pd
+
+from strategy_engine.core.enums import SignalDirection
 from strategy_engine.strategies import StrategyBase, ConfigT
 from strategy_engine.features import Feature, FeatureRegistry
-from strategy_engine.core_classes import StrategyContext
-from strategy_engine.core_classes import Signal
+from strategy_engine.core import StrategyContext
+from strategy_engine.core import Signal
 
 
 

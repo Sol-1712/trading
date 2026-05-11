@@ -1,3 +1,2 @@
 from .runner import BacktestRunner
-
-__all__ = ['BacktestRunner']
+from .config import Config, load_config

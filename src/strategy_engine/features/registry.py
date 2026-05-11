@@ -13,6 +13,10 @@ class FeatureRegistry:
 
 
     def register(self, feature: Feature) -> None:
+        if feature.name in self._registry:
+            raise ValueError(
+                f"Feature '{feature.name}' already registered."
+            )
         self._registry[feature.name] = feature
 
 

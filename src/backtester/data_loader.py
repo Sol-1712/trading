@@ -2,7 +2,7 @@ import pandas as pd
 
 from data_utils.paths import make_data_path
 from data_utils.io import load_partitioned_parquet
-from backtester.config import Config
+from backtester.engine.config import Config
 
 ### Crrently only works for raw ohlcv data, fix when i fix the rest
 

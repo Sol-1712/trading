@@ -1,3 +1,1 @@
-from .ema import EMA
-from .sma import SMA
-from.ma_base import MovingAverage
+from .ma import MovingAverage, EMA, SMA, MAType
