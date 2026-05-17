@@ -54,7 +54,7 @@ class CostMetrics:
     @cached_property
     def sharpe(self) -> float:
         """Sharpe ratio of the strategy returns."""
-        return compute_sharpe(self.core.returns, self.core.rf)
+        return compute_sharpe(self.core.returns, self.core.rf, self.core.ann_factor)
     
 
     @cached_property
@@ -134,7 +134,7 @@ class CostMetrics:
         """Reduction in Sharpe ratio caused by trading fees."""
         returns_no_fee = self.core.returns + self.core.fee_returns
 
-        sharpe_no_fee = compute_sharpe(returns_no_fee, self.core.rf)
+        sharpe_no_fee = compute_sharpe(returns_no_fee, self.core.rf, self.core.ann_factor)
         return float(sharpe_no_fee - self.sharpe)
     
 
@@ -143,5 +143,5 @@ class CostMetrics:
         """Impact of funding payments on Sharpe ratio."""
         returns_no_funding = self.core.returns - self.core.funding_returns
 
-        sharpe_no_funding = compute_sharpe(returns_no_funding, self.core.rf)
+        sharpe_no_funding = compute_sharpe(returns_no_funding, self.core.rf, self.core.ann_factor)
         return float(sharpe_no_funding - self.sharpe)

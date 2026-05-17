@@ -78,7 +78,7 @@ def safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
     )
 
 
-def compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float = None) -> float:
+def compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float | None) -> float:
     """
     Compute the per-bar Sharpe ratio for a series of returns.
 
@@ -88,7 +88,7 @@ def compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float = None) -> 
         Per-period returns.
     rf : float
         Per period risk-free rate (log-transformed).
-    ann_factor: float
+    ann_factor: float | None
         Optional annualisation factor.
 
     Returns

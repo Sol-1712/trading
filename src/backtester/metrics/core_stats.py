@@ -1,27 +1,50 @@
 import pandas as pd
 import numpy as np
 from functools import cached_property
+from typing import cast
 from backtester.utils import infer_ann_factor, safe_divide
 
 # Potentially pass an asset config file to set things like rf, mar, etc
 # Or use the dataframe appendix thing
 class CoreStats:
 
-    def __init__(self, pnl_df):
+    def __init__(self, pnl_df: pd.DataFrame):
+
+        # self.pnl_df = pnl_df
+
+        # # Convert df to raw numpy arrays
+        # self.returns     = pnl_df['returns_normalised'].to_numpy()
+        # self.equity      = pnl_df['equity ($)'].to_numpy()
+
+        # self.held_pos     = pnl_df['held_pos (% of equity)'].to_numpy()
+        #self.trade        = pnl_df['trade (% of equity)'].to_numpy()
+
+        # self.strategy_pnl = pnl_df["strategy_pnl ($)"].to_numpy() 
+        # self.position_pnl = pnl_df["position_pnl ($)"].to_numpy()
+        # self.funding_pnl  = pnl_df['funding_pnl ($)'].to_numpy()
+        # self.fee_pnl      = pnl_df["fees ($)"].to_numpy()
 
         self.pnl_df = pnl_df
+        df = pnl_df
 
-        # Convert df to raw numpy arrays
-        self.returns     = pnl_df['returns_normalised'].to_numpy()
-        self.equity      = pnl_df['equity ($)'].to_numpy()
+        # --- core series ---
+        self.equity = df["equity"].to_numpy()
 
-        self.held_pos     = pnl_df['held_pos (% of equity)'].to_numpy()
-        self.trade        = pnl_df['trade (% of equity)'].to_numpy()
+        # returns (derived safely)
+        self.returns = (df["equity"].pct_change().fillna(0)).to_numpy()
 
-        self.strategy_pnl = pnl_df["strategy_pnl ($)"].to_numpy() 
-        self.position_pnl = pnl_df["position_pnl ($)"].to_numpy()
-        self.funding_pnl  = pnl_df['funding_pnl ($)'].to_numpy()
-        self.fee_pnl      = pnl_df["fees ($)"].to_numpy()
+        # position / exposure
+        self.held_pos = df["position_units"].to_numpy()
+
+        # trades
+        self.trade = df["trade_occurred"].astype(float).to_numpy()
+
+        # pnl components
+        self.strategy_pnl = df["bar_pnl"].to_numpy()
+        self.position_pnl = df["bar_pnl"].to_numpy()
+
+        self.funding_pnl = df["funding_pnl"].to_numpy()
+        self.fee_pnl = df["fee"].to_numpy()
 
         # Basic stats
         self.log_returns = np.log1p(self.returns)
@@ -32,8 +55,11 @@ class CoreStats:
         self.rf  = 0.0 # Risk Free per bar (funding_rate / bars_per_year LATER)
         self.mar = 0.0 # Minimum acceptable return per bar (TARGET RETURN)
 
+        pnl_df.index = pd.to_datetime(pnl_df.index)  # Ensure it actually is datetime
+        dt_index = cast(pd.DatetimeIndex, pnl_df.index)
+
         # Infer frequency and annualisation factor
-        self.freq, self.ann_factor = infer_ann_factor(self.pnl_df.index)
+        self.freq, self.ann_factor = infer_ann_factor(dt_index)
         self.ann_sqrt = np.sqrt(self.ann_factor)
 
 

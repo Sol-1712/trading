@@ -4,6 +4,7 @@ from .return_metrics import ReturnMetrics
 from .risk_metrics import RiskMetrics
 from .cost_metrics import CostMetrics
 from .position_metrics import PositionMetrics
+from .display import display_report
  
 __all__ = [
     "PerformanceReport",

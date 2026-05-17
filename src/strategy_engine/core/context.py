@@ -1,7 +1,0 @@
-
-
-
-
-
-class StrategyContext():
-    pass

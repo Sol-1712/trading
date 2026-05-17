@@ -110,7 +110,7 @@ class ReturnMetrics:
     @cached_property
     def sharpe(self) -> float:
         """Sharpe ratio of the strategy returns."""
-        return compute_sharpe(self.core.returns, self.core.rf)
+        return compute_sharpe(self.core.returns, self.core.rf, self.core.ann_factor)
     
 
     @property

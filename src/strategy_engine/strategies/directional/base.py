@@ -6,7 +6,6 @@ import pandas as pd
 from strategy_engine.core.enums import SignalDirection
 from strategy_engine.strategies import StrategyBase, ConfigT
 from strategy_engine.features import Feature, FeatureRegistry
-from strategy_engine.core import StrategyContext
 from strategy_engine.core import Signal
 
 

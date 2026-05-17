@@ -4,7 +4,7 @@ from backtester.metrics.performance_report import PerformanceReport
 from IPython.display import display
 
 
-def display_report(report: PerformanceReport, symbol: str = None) -> None:
+def display_report(report: PerformanceReport, symbol: str | None) -> None:
     """
     Displays a formatted PerformanceReport in a Jupyter notebook.
 
