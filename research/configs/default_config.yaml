@@ -5,6 +5,5 @@ end:                  01/01/2026
 initial_capital:      100000
 fee_rate:             0.000550
 delay_bars:           1
-signal_price_type:    last
 execution_price_type: last
 leverage_max:         100

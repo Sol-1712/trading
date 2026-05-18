@@ -16,3 +16,13 @@ class PriceType(str, Enum):
     INDEX = "index"
     LAST  = "last"
 
+
+class DataType(str, Enum):
+    KLINE = "kline"
+    FUNDING = "funding"
+
+
+
+class Exchange(str, Enum):
+    BYBIT = "bybit"
+    BINANCE = "binance"

@@ -28,4 +28,5 @@ class StrategyBase(ABC, Generic[ConfigT]):
 
 @dataclass(frozen=True)
 class StrategyConfig:
-    strategy_id: str
+    strategy_id:       str
+    signal_price_type: str

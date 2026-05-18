@@ -127,7 +127,8 @@ class BacktestRunner:
             Portfolio object with full snapshot history populated.
         """
 
-        prices = data[f'{self.config.execution_price_type.value}_open']  # assuming execution at open of next bar after signal
+        price_col = f"{self.config.execution_price_type.value}_open"
+        prices = data[price_col]  # assuming execution at open of next bar after signal
 
         # Align targets to the price index, then apply execution delay.
         # shift(n) moves each value n positions later in the index, so

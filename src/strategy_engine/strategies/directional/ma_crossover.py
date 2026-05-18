@@ -2,6 +2,7 @@ from strategy_engine.strategies.directional import DirectionalStrategy
 from strategy_engine.features.registry      import FeatureRegistry
 from strategy_engine.features.trend         import MAType, MovingAverage, SMA, EMA
 from strategy_engine.core.signal            import Signal
+from enums                                  import PriceType
 from strategy_engine.strategies             import StrategyConfig
 
 from dataclasses import dataclass
@@ -12,16 +13,18 @@ import pandas as pd
 class MACrossoverConfig(StrategyConfig):
     """
     Args
-        fast_period: int
-        fast_type:   MAType
-        slow_period: int
-        slow_type:   MAType
+        fast_period:         int
+        fast_type:           MAType
+        slow_period:         int
+        slow_type:           MAType
+        signal_price_type:   PriceType
     
     """
-    fast_period: int
-    fast_type:   MAType
-    slow_period: int
-    slow_type:   MAType
+    fast_period:        int
+    fast_type:          MAType
+    slow_period:        int
+    slow_type:          MAType
+    signal_price_type:  PriceType
     
     def __post_init__(self):
         if self.fast_period <= 0:
@@ -45,14 +48,15 @@ class MACrossover(DirectionalStrategy[MACrossoverConfig]):
         Allocates fast and slow MA objects. 
         e.g self.fast = SMA(30)
         """
+        self.price_col = f'{config.signal_price_type.value}_close'
         self.fast = self._build(config.fast_type, config.fast_period)
         self.slow = self._build(config.slow_type, config.slow_period)
 
 
     def _build(self, ma_type: MAType, period: int) -> MovingAverage:
         match ma_type:
-            case MAType.SMA: return SMA(period)
-            case MAType.EMA: return EMA(period)
+            case MAType.SMA: return SMA(period, column=self.price_col)
+            case MAType.EMA: return EMA(period, column=self.price_col)
             case _: raise ValueError(f"Unsupported MA type: {ma_type}")
 
 

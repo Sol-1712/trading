@@ -8,13 +8,10 @@ from data_utils.fetch import fetch_funding_rate, fetch_last_ohlcv, fetch_mark_oh
 from data_utils.io import save_partitioned_parquet, load_partitioned_parquet
 from data_utils.paths import make_data_path
 
-### Requires a full rewrite with threading logging, more rigorous
-### Call multiple symbols at once rather than pagination
-### Also it gets all the data and then saves, better to get all of one file (say a month), save and continue
 
 SYMBOLS = ["BTCUSDT", "ETHUSDT"]
 INTERVALS = [1, 5, 15, 60, 240]
-START_FALLBACK = 1609459200000 # 01/01/2021 00:00:00
+START_FALLBACK = int(pd.Timestamp("2021-01-01", tz="UTC").timestamp() * 1000)
 
 
 
