@@ -8,33 +8,41 @@ class FeatureRegistry:
     Registry calls each stored Feature's compute function.
     """
 
-    def __init__(self):
-        self._registry: dict[str, Feature] = {}
-
+    def __init__(self) -> None:
+        self._features: dict[str, Feature] = {}
 
     def register(self, feature: Feature) -> None:
-        if feature.name in self._registry:
+        if feature.name in self._features:
             raise ValueError(
-                f"Feature '{feature.name}' already registered."
+                f"Feature '{feature.name}' is already registered. "
+                f"Ensure feature names are unique across the strategy."
             )
-        self._registry[feature.name] = feature
+        self._features[feature.name] = feature
 
-
-    def get(self, name: str) -> Feature:
-        if name not in self._registry:
-            raise ValueError(f"Feature '{name}' not registered.")
-        return self._registry[name]
-
-
-    def validate(self, requested: list[str]) -> None:
-        missing = [f for f in requested if f not in self._registry]
+    def compute_batch(
+        self, 
+        data:  pd.DataFrame, 
+        names: list[str],
+    ) -> pd.DataFrame:
+        """
+        Compute requested features and return enriched DataFrame.
+        Features are added as new columns — existing columns unchanged.
+        
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Raw market data.
+        names : list[str]
+            Feature names to compute. Must all be registered.
+        """
+        missing = set(names) - self._features.keys()
         if missing:
-            raise ValueError(f"Unregistered features: {missing}")
+            raise KeyError(
+                f"Requested features not registered: {missing}. "
+                f"Registered: {set(self._features.keys())}"
+            )
 
-
-    def compute_batch(self, df: pd.DataFrame, requested: list[str]) -> pd.DataFrame:
-        self.validate(requested)
-        out = df.copy()
-        for name in requested:
-            out[name] = self._registry[name].compute(df)
-        return out
+        result = data.copy()
+        for name in names:
+            result[name] = self._features[name].compute(result)
+        return result

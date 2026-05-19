@@ -1,0 +1,13 @@
+data:
+  symbol:   BTCUSDT
+  interval: 60
+  start:    "01/01/2025"
+  end:      "01/01/2026"
+
+execution:
+  fee_rate:             0.000550
+  delay_bars:           1
+  execution_price_type: last
+  leverage_max:         100
+
+initial_capital: 100000

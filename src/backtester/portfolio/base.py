@@ -17,7 +17,7 @@ class Portfolio:
     Models a futures/perpetual portfolio where equity evolves each bar as:
 
         equity[t] = equity[t-1]
-                  + position_units[t-1] * (price[t] - price[t-1])   # MTM PnL
+                  + position_units[t-1] * (price[t] - price[t-1])     # MTM PnL
                   - fee[t]                                            # trade cost
 
     The caller passes a *target fraction* each bar — the desired position size

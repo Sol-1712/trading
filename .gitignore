@@ -12,7 +12,6 @@ __pycache__/
 
 # Ignore strategies
 docs/strategy_notes/strategy_ideas.txt
-strategy_engine_claude.py
 
 
 # Data
@@ -25,7 +24,7 @@ data/
 TODO.txt
 WATCH.txt
 NEXT.txt
-research/test1.ipynb
+defunct/
 .venv/
 *.egg-info/
 

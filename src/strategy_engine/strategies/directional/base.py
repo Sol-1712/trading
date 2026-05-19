@@ -23,25 +23,28 @@ class DirectionalStrategy(StrategyBase[ConfigT], ABC):
         """
         
         super().__init__(config)
-        self.config = config
+        self._features: list[Feature] | None = None
 
 
     @abstractmethod
+    def _build_features(self) -> list[Feature]:
+        """
+        Construct all Feature instances this strategy needs.
+        Built once and cached — required_features() and 
+        register_features() both derive from this.
+        """
+
+    def _get_features(self) -> list[Feature]:
+        if self._features is None:
+            self._features = self._build_features()
+        return self._features
+
     def required_features(self) -> list[str]:
-        """
-        Names of all features this strategy needs.
-        Called by the engine before the backtest starts.
-        e.g. ['ma_30', 'ma_90', 'atr_14']
-        """
-        pass
+        return [f.name for f in self._get_features()]
 
-
-    @abstractmethod
     def register_features(self, registry: FeatureRegistry) -> None:
-        """
-        Constructs and adds each feature object to the registry
-        e.g registry.register(MA(30))   
-        """
+        for feature in self._get_features():
+            registry.register(feature)
 
 
     @abstractmethod

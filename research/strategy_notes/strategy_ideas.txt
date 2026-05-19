@@ -1,8 +1,11 @@
-Perp - Spot + Funding (perp basis) -> if can't trade spot, abuse others
-Cointegration ? 
-BTC/ETH vs SOL, XRP -> lags?
 
 
+MA CROSS
+Donchian Channel Breakout (VERY important for crypto)
+Volatility-Adjusted Trend (MA or breakout + ATR sizing)
 
 
 AS/CJR MODEL -> Mid liquidty altcoin perps (Geometric BM?) (MM)
+Perp - Spot + Funding (perp basis) -> if can't trade spot, abuse others
+Cointegration ? 
+BTC/ETH vs SOL, XRP -> lags?

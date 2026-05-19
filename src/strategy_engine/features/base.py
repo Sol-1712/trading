@@ -23,7 +23,6 @@ class Feature(ABC):
     def window(self) -> int:
         """
         Minimum number of bars required to produce a valid value.
-        Rows before this will be NaN in batch mode.
         """
         pass
 
