@@ -2,7 +2,6 @@ from dataclasses import dataclass
 from data_utils.enums import PriceType
 
 
-
 @dataclass(frozen=True)
 class ExecutionConfig:
     """

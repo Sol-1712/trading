@@ -11,4 +11,4 @@ class BacktestResults:
     signals:              list[Signal]
     targets:              pd.Series
     portfolio_history:    pd.DataFrame
-    report:               PerformanceReport
+    #report:               PerformanceReport

@@ -8,11 +8,11 @@ from backtester.portfolio.base import Portfolio
 
 class ExecutionEngine(ABC):
     """
-    Abstract base for execution simulation engines.
+    Abstract execution engine.
 
-    Each strategy type (directional, market making, arbitrage) 
-    requires a different execution model. Concrete engines implement 
-    this interface so the runner can treat them uniformly.
+    Each strategy type requires a different simulation model.
+    The runner holds an ExecutionEngine and calls run() — it 
+    does not need to know which concrete engine it has.
     """
 
     @abstractmethod
@@ -25,20 +25,23 @@ class ExecutionEngine(ABC):
         price_col: str,
     ) -> Portfolio:
         """
-        Simulate execution and return a Portfolio.
+        Simulate execution over the full data period.
 
         Parameters
         ----------
         targets : pd.Series
-            Desired position at each bar, in base asset units.
-            Signed: positive = long, negative = short.
+            Sized position targets as signed fractions of equity.
+            Aligned to data.index. Pre-delay is NOT applied — 
+            the engine applies delay_bars from config.
         data : pd.DataFrame
-            Full enriched market data including funding_rate if available.
+            Enriched market data. Must contain price_col and 
+            optionally funding_rate.
         config : ExecutionConfig
             Fee rate, delay bars, leverage limits.
         capital : float
             Initial capital in quote currency.
         price_col : str
             Column in data to use as execution price.
+            Resolved by the runner before calling this method.
         """
         ...

@@ -12,32 +12,13 @@ from backtester.portfolio.snapshot import PortfolioSnapshot
 
 class Portfolio:
     """
-    Single-instrument mark-to-market portfolio simulator.
+    Stateful bar-by-bar portfolio simulator.
 
-    Models a futures/perpetual portfolio where equity evolves each bar as:
+    Receives pre-sized target fractions from the execution engine
+    and handles all accounting: MTM, funding, fees, equity tracking.
 
-        equity[t] = equity[t-1]
-                  + position_units[t-1] * (price[t] - price[t-1])     # MTM PnL
-                  - fee[t]                                            # trade cost
-
-    The caller passes a *target fraction* each bar — the desired position size
-    as a signed proportion of current equity. The portfolio converts this to
-    units at the current price, computes the trade delta, and charges fees on
-    the notional of that delta.
-
-    Responsibilities
-    ----------------
-    - Equity evolution via mark-to-market PnL
-    - Fee accounting on position changes
-    - Fraction → units conversion at current equity and price
-    - Per-bar PortfolioSnapshot history for downstream metrics
-
-    Explicitly NOT responsible for
-    --------------------------------
-    - Signal generation or position sizing logic
-    - Execution delay (the engine shifts targets before calling step())
-    - Data loading or feature computation
-
+    Deliberately decoupled from ExecutionConfig — takes only the 
+    scalar values it needs so it can be used or tested independently.
     Parameters
     ----------
     initial_capital : float
@@ -54,22 +35,23 @@ class Portfolio:
 
     _UNITS_TOLERANCE: float = 1e-10  # below which delta is treated as zero
 
-    def __init__(self, initial_capital: float, fee_rate: float) -> None:
+    def __init__(self, 
+                 initial_capital: float, 
+                 fee_rate: float
+                 ) -> None:
+        
         if initial_capital <= 0:
             raise ValueError(f"initial_capital must be positive, got {initial_capital}")
         if not (0.0 <= fee_rate <= 0.01):
             raise ValueError(f"fee_rate {fee_rate} outside expected range [0, 0.01]")
-
-        self._initial_capital: float = initial_capital
-        self._fee_rate:        float = fee_rate
-
-        # --- Mutable state (reset between runs) ---
-        self._equity:          float          = initial_capital
-        self._position_units:  float          = 0.0
-        self._last_price:      Optional[float] = None
-        self._total_fees:      float          = 0.0
-        self._total_funding:   float          = 0.0
-        self._snapshots:       list[PortfolioSnapshot] = []
+        
+        # Mutable state — modified only by step()
+        self._equity:          float
+        self._position_units:  float
+        self._last_price:      float | None
+        self._total_fees:      float
+        self._total_funding:   float
+        self._snapshots:       list[PortfolioSnapshot]
 
     # ------------------------------------------------------------------ #
     # Primary interface                                                     #
@@ -86,15 +68,12 @@ class Portfolio:
         Advance the portfolio by one bar.
 
         Order of operations (matters for correctness):
-          1. Mark-to-market the *existing* position at the new price.
-          2. Apply funding on the *existing* position and notional.
-          3. Compute target units from the (post-MTM, post-funding) equity.
-          4. Compute the trade delta; apply fees on its notional.
-          5. Update state; record snapshot.
-
-        MTM before rebalancing is the correct sequence: you earn (or lose)
-        on your current position first, *then* you trade at the new price.
-        Doing it the other way would introduce a subtle look-ahead bias.
+            1. MTM existing position at new price
+            2. Apply funding on existing position
+            3. Clamp target fraction to leverage_max
+            4. Convert fraction → units using post-MTM equity
+            5. Compute trade delta, apply fees
+            6. Update state, record and return snapshot
 
         Parameters
         ----------
@@ -117,57 +96,12 @@ class Portfolio:
         -------
         PortfolioSnapshot
             Immutable record of state after this bar.
-
-        Raises
-        ------
-        ValueError
-            If price is non-positive.
         """
+
         if price <= 0.0:
             raise ValueError(f"price must be positive, got {price} at {timestamp}")
 
-        # ---- 1. Mark-to-market existing position ---- #
-        prev_price = self._last_price if self._last_price is not None else price
-        bar_pnl    = self._position_units * (price - prev_price)
-        self._equity += bar_pnl
-    
-        # ---- 2. Funding settlement ---- #
-        # Longs pay positive funding; shorts receive it (and vice versa).
-        # funding_pnl = -(position_notional) × funding_rate
-        # Negative result = equity decreased (you paid funding).
-        funding_pnl = -(self._position_units * price) * funding_rate
-        self._equity        += funding_pnl
-        self._total_funding += funding_pnl
-
-        # ---- 3. Target units at current equity ---- #
-        # If equity has gone negative (ruin), stay flat — do not dig deeper.
-        target_units = self._fraction_to_units(target_fraction, price)
-        delta_units  = target_units - self._position_units
-
-        trade_occurred = abs(delta_units) > self._UNITS_TOLERANCE
-
-        # ---- 4. Fee on trade notional ---- #
-        fee = abs(delta_units) * price * self._fee_rate if trade_occurred else 0.0
-        self._equity    -= fee
-        self._total_fees += fee
-
-        # ---- 5. Update state ---- #
-        self._position_units = target_units
-        self._last_price     = price
-
-        snapshot = PortfolioSnapshot(
-            timestamp       = timestamp,
-            price           = price,
-            target_fraction = target_fraction,
-            position_units  = self._position_units,
-            equity          = self._equity,
-            bar_pnl         = bar_pnl,
-            funding_pnl     = funding_pnl,
-            fee             = fee,
-            trade_occurred  = trade_occurred,
-        )
-        self._snapshots.append(snapshot)
-        return snapshot
+        pass
 
 
     # ------------------------------------------------------------------ #
@@ -199,7 +133,7 @@ class Portfolio:
 
     @property
     def initial_capital(self) -> float:
-        return self._initial_capital
+        return self.initial_capital
 
     @property
     def n_bars(self) -> int:
@@ -244,7 +178,7 @@ class Portfolio:
         to reuse the same Portfolio object across multiple runs without
         re-instantiating it.
         """
-        self._equity         = self._initial_capital
+        self._equity         = self.initial_capital
         self._position_units = 0.0
         self._last_price     = None
         self._total_fees     = 0.0
@@ -259,7 +193,7 @@ class Portfolio:
         """
         Convert a signed position fraction to signed asset units.
 
-        Units = sign(fraction) × |equity × fraction| / price
+        Units = sign(fraction) x |equity x fraction| / price
 
         If equity is zero or negative (portfolio is ruined), returns 0
         rather than attempting further positioning.

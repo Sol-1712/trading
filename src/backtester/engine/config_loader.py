@@ -3,7 +3,8 @@ from pathlib import Path
 import yaml
 from typing import Any
 
-from .config import ExecutionConfig, BacktestConfig
+from .config import BacktestConfig
+from backtester.engine.execution import ExecutionConfig
 from data_utils.config import DataConfig
 from data_utils.enums import PriceType
 

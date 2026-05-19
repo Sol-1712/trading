@@ -4,15 +4,14 @@ import pandas as pd
 from data_utils.prepare                      import prepare_data
 from backtester.metrics.performance_report   import PerformanceReport
 from backtester.engine.config                import BacktestConfig
-from backtester.engine.execution             import ExecutionConfig
+from backtester.engine.execution             import ExecutionConfig, PerpDirectionalEngine
 from strategy_engine.strategies              import StrategyBase
 from strategy_engine.strategies.directional  import DirectionalStrategy
 from strategy_engine.features                import FeatureRegistry
 from strategy_engine.core                    import Signal
-from backtester.engine.results               import BacktestResults
-from risk.temp_sizer                         import simple_size
+from backtester.metrics.results              import BacktestResults
+from backtester.risk.temp_sizer              import simple_size
 from backtester.portfolio                    import Portfolio
-
 
 
 
@@ -51,20 +50,21 @@ class BacktestRunner:
         # ------------------------- #
         # State dependent from here #
         # ------------------------- #
-        pos       = self._size_pos(signals)
+        targets          = self._size_pos(signals)
+        targets_adjusted = self._apply_risk(targets, data_rich)
 
-        portfolio = self._run_backtest(
+        portfolio = self._run_portfolio(
             data    = data_rich,
-            targets = pos
+            targets = targets_adjusted
         )
         history = portfolio.history()
 
         return BacktestResults(
             data    = data_rich,
             signals = signals,
-            targets = pos,
+            targets = targets_adjusted,
             portfolio_history = history,
-            report = PerformanceReport(history)
+            #report = PerformanceReport(history)
         )
 
 
@@ -101,15 +101,62 @@ class BacktestRunner:
 
 
     def _size_pos(self, signals: list[Signal]) -> pd.Series:
+        """
+        Dirty stub for now.
+        """
         return simple_size(signals)
 
 
-    def _run_backtest(
+    def _apply_risk(
+        self, 
+        targets: pd.Series, 
+        data:    pd.DataFrame,
+    ) -> pd.Series:
+        """
+        Hook for risk engine. Adjusts raw position targets before execution.
+        Currently a passthrough — RiskEngine integration added here.
+        """
+        return targets
+    
+
+    def _run_portfolio(
         self,
         data:    pd.DataFrame,
         targets: pd.Series,
     ) -> Portfolio:
-        
+    #         → resolves price column
+    # → creates PerpDirectionalEngine
+    # → calls engine.run()
+    #     → validates inputs
+    #     → applies delay to targets
+    #     → creates Portfolio
+    #     → loops bars, calls portfolio.step()
+    #         → MTM → funding → sizing → trade → fee
+    #         → records PortfolioSnapshot
+    #     → returns Portfolio
+    # → caller calls portfolio.history()
+    #     → returns pd.DataFrame of snapshots
 
-        t = Portfolio(initial_capital=self.config.initial_capital, fee_rate=self.execution_config.fee_rate)
-        return t
+        """
+        Selects the correct engine for the strategy type,
+        resolves the execution price column, and runs simulation.
+        """
+        engine    = PerpDirectionalEngine()
+        price_col = self._resolve_execution_price_col(data)
+
+        return engine.run(
+            targets   = targets,
+            data      = data,
+            config    = self.config.execution,
+            capital   = self.config.initial_capital,
+            price_col = price_col,
+        )
+    
+
+    def _resolve_execution_price_col(self, data: pd.DataFrame) -> str:
+        """
+        Resolves execution price column from ExecutionConfig.execution_price_type.
+        Tries prefixed (mark_close) then unprefixed (close).
+        Raises clearly if neither is found.
+        """
+        pass

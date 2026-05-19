@@ -41,6 +41,7 @@ class PortfolioSnapshot:
     position_units:  float
     equity:          float
     bar_pnl:         float
-    fee:             float
     funding_pnl:     float
+    fee:             float
     trade_occurred:  bool
+    leverage:        float
