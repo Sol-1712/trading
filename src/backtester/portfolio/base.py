@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
-from typing import Optional
+from typing import ClassVar
 
 import numpy as np
 import pandas as pd
@@ -33,7 +33,7 @@ class Portfolio:
     >>> df = portfolio.history()
     """
 
-    _UNITS_TOLERANCE: float = 1e-10  # below which delta is treated as zero
+    _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
     def __init__(self, 
                  initial_capital: float, 
@@ -60,7 +60,7 @@ class Portfolio:
     def step(
         self,
         timestamp:       datetime,
-        price:           float,
+        fill_price:      float,
         target_fraction: float,
         funding_rate:    float = 0.0,
     ) -> PortfolioSnapshot:
@@ -70,7 +70,6 @@ class Portfolio:
         Order of operations (matters for correctness):
             1. MTM existing position at new price
             2. Apply funding on existing position
-            3. Clamp target fraction to leverage_max
             4. Convert fraction → units using post-MTM equity
             5. Compute trade delta, apply fees
             6. Update state, record and return snapshot
@@ -98,14 +97,14 @@ class Portfolio:
             Immutable record of state after this bar.
         """
 
-        if price <= 0.0:
-            raise ValueError(f"price must be positive, got {price} at {timestamp}")
+        if fill_price <= 0.0:
+            raise ValueError(f"price must be positive, got {fill_price} at {timestamp}")
 
         pass
 
 
     # ------------------------------------------------------------------ #
-    # State accessors                                                       #
+    # State accessors                                                      
     # ------------------------------------------------------------------ #
 
     @property

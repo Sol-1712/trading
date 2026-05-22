@@ -1,4 +1,5 @@
 This project is a quantitative trading research and backtesting system focused on directional trading strategies and crypto perpetual futures.
+It is for individual use only, but should maintain professional standards.
 
 The system is designed for:
 - strategy research

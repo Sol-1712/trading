@@ -21,9 +21,8 @@ data/
 *.csv
 *.h5
 
-TODO.txt
-WATCH.txt
-NEXT.txt
+*.txt
+
 defunct/
 .venv/
 *.egg-info/

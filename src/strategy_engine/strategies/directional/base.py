@@ -25,6 +25,8 @@ class DirectionalStrategy(StrategyBase[ConfigT], ABC):
         super().__init__(config)
         self._features: list[Feature] | None = None
 
+        self._signal_state: SignalDirection  = SignalDirection.FLAT
+
 
     @abstractmethod
     def _build_features(self) -> list[Feature]:
@@ -34,23 +36,27 @@ class DirectionalStrategy(StrategyBase[ConfigT], ABC):
         register_features() both derive from this.
         """
 
+
     def _get_features(self) -> list[Feature]:
         if self._features is None:
             self._features = self._build_features()
         return self._features
 
-    def required_features(self) -> list[str]:
-        return [f.name for f in self._get_features()]
 
     def register_features(self, registry: FeatureRegistry) -> None:
         for feature in self._get_features():
             registry.register(feature)
 
 
+    def required_features(self) -> list[str]:
+        return [f.name for f in self._get_features()]
+
+
     @abstractmethod
     def generate_signals(self, df: pd.DataFrame) -> list[Signal]:
         """
         Takes the feature-rich dataset and generates an array of Signal objects.
+        This is the actual strategy logic
         Args:
             df: pd.DataFrame
         """

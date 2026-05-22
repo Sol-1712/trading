@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from data_utils.enums import PriceType
+from backtester.engine.execution.fill import FillModel
 
 
 @dataclass(frozen=True)
@@ -15,11 +16,15 @@ class ExecutionConfig:
         Type of price to use for execution.
     leverage_max : float
         Maximum leverage allowed.
+    fill_model : FillModel | None
+        Optional custom fill model. If None, defaults to MarketFillModel.
     """
-    fee_rate:             float
-    delay_bars:           int       = 1
-    execution_price_type: PriceType = PriceType.LAST
-    leverage_max:         float     = 100.0
+    fee_rate:             float            = 0.000550
+    delay_bars:           int              = 1
+    execution_price_type: PriceType        = PriceType.LAST
+    leverage_max:         float            = 100.0
+    fill_model:           FillModel | None = None # Defaults to MarketFillModel
+
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.fee_rate <= 0.01:
@@ -28,6 +33,7 @@ class ExecutionConfig:
             raise ValueError(f"delay_bars must be >= 1, got {self.delay_bars}")
         if self.leverage_max < 1.0:
             raise ValueError(f"leverage_max must be >= 1.0, got {self.leverage_max}")
+
 
         # Coerce raw string from YAML → PriceType enum
         object.__setattr__(

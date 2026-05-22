@@ -39,8 +39,6 @@ class StrategyBase(ABC, Generic[ConfigT]):
 
     def _resolve_column(self, base: str, price_type: PriceType | None = None) -> str:
         price_types = self.config.signal_price_types
-        if len(price_types) == 1:
-            return base
         pt = price_type or price_types[0]
         return f"{pt.value}_{base}"
 

@@ -28,9 +28,9 @@ class MACrossoverConfig(StrategyConfig):
     slow_type : MAType
         MA type for the slow line (SMA or EMA).
     """
-    fast_period: int    = 30
-    fast_type:   MAType = MAType.SMA
-    slow_period: int    = 90
+    fast_period: int    = 20
+    fast_type:   MAType = MAType.EMA
+    slow_period: int    = 50
     slow_type:   MAType = MAType.SMA
 
     def __post_init__(self) -> None:
@@ -56,30 +56,61 @@ class MACrossover(DirectionalStrategy[MACrossoverConfig]):
 
     def __init__(self, config: MACrossoverConfig) -> None:
         super().__init__(config)
-        col        = self._resolve_column("close")
-        self.fast  = config.fast_type.build(config.fast_period, col)
-        self.slow  = config.slow_type.build(config.slow_period, col)
+        price_col  = self._resolve_column("close") # We want PriceType_close 
+        self.fast  = config.fast_type.build(config.fast_period, price_col)
+        self.slow  = config.slow_type.build(config.slow_period, price_col)
+
 
     def _build_features(self) -> list[MovingAverage]:
+        """
+        List of features (MovingAverages)
+        """
         return [self.fast, self.slow]
 
-    def generate_signals(self, df: pd.DataFrame) -> list[Signal]:
+
+    def generate_signals(self, df: pd.DataFrame) -> list[Signal | None]:
+
         fast_vals = df[self.fast.name]
         slow_vals = df[self.slow.name]
 
-        signals = []
+        signals: list[Signal | None] = [None]
 
-        for ts, f, s in zip(df.index, fast_vals, slow_vals):
-            if pd.isna(f) or pd.isna(s):
+        prev_f = fast_vals.iloc[0]
+        prev_s = slow_vals.iloc[0]
+
+        for ts, f, s in zip(
+            df.index[1:],
+            fast_vals.iloc[1:],
+            slow_vals.iloc[1:]
+        ):
+
+            if any(pd.isna(x) for x in (prev_f, prev_s, f, s)):
+                signals.append(None)
+                prev_f, prev_s = f, s
                 continue
 
-            strength = min(abs(f - s) / s * 100, 1.0)
+            prev_spread = prev_f - prev_s
+            curr_spread = f - s
 
-            if f > s:
+            strength = min(abs(curr_spread) / abs(s), 1.0)
+
+            bull_cross = (
+                prev_spread <= 0 and curr_spread > 0
+            )
+
+            bear_cross = (
+                prev_spread >= 0 and curr_spread < 0
+            )
+
+            if bull_cross:
                 signals.append(self._long(strength, ts))
-            elif f < s:
+
+            elif bear_cross:
                 signals.append(self._short(strength, ts))
+
             else:
-                signals.append(self._flat(ts))
+                signals.append(None)
+
+            prev_f, prev_s = f, s
 
         return signals

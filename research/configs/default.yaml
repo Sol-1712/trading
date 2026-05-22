@@ -9,5 +9,5 @@ execution:
   delay_bars:           1
   execution_price_type: last
   leverage_max:         100
-
+  
 initial_capital: 100000

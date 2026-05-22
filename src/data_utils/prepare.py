@@ -39,11 +39,10 @@ def prepare_data(
     """
     kline_frames = [_load_klines(config, pt) for pt in price_types]
     
-    if len(kline_frames) > 1:
-        kline_frames = [
-            _prefix_columns(df, pt) 
-            for df, pt in zip(kline_frames, price_types)
-        ]
+    kline_frames = [
+        _prefix_columns(df, pt) 
+        for df, pt in zip(kline_frames, price_types)
+    ]
     
     klines  = pd.concat(kline_frames, axis=1) if len(kline_frames) > 1 else kline_frames[0]
     funding = _load_funding(config)
