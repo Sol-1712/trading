@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import logging
 
 from data_utils.prepare                      import prepare_data
 from backtester.metrics.performance_report   import PerformanceReport
@@ -14,7 +15,7 @@ from backtester.risk.temp_sizer              import simple_size
 from backtester.portfolio                    import Portfolio
 
 
-
+logger = logging.getLogger(__name__)
 
 class BacktestRunner:
 
@@ -74,6 +75,36 @@ class BacktestRunner:
         return self.strategy.generate_signals(data)     
 
 
+    def _validate_signals(self, signals: list[Signal], data: pd.DataFrame) -> None:
+        """Verify signals use only t-1 and earlier data."""
+        if len(signals) != len(data):
+            raise ValueError(f"Signal count {len(signals)} != data rows {len(data)}")
+        
+        # More sophisticated: check signal timestamps align with bar timestamps
+        for t, signal in enumerate(signals):
+            if signal is None:
+                continue
+
+            bar_timestamp = data.index[t]
+
+            if signal.timestamp > bar_timestamp:
+                raise ValueError(
+                    f"Lookahead detected at bar {t}: "
+                    f"signal timestamp {signal.timestamp} is after "
+                    f"bar timestamp {bar_timestamp}. "
+                    f"Signal was generated using future data."
+                )
+
+            if signal.timestamp < data.index[0]:
+                raise ValueError(
+                    f"Signal at bar {t} has timestamp {signal.timestamp} "
+                    f"which predates the dataset start {data.index[0]}. "
+                    f"Check signal generation logic."
+                )
+            
+        logger.info("Validated %d signals — no lookahead detected.", len(signals))
+
+
     def _size_pos(self, signal: Signal) -> float | None:
         """
         Dirty stub for now.
@@ -99,8 +130,12 @@ class BacktestRunner:
         
         self._data = self._load_data()
         self._data = self._compute_features(self._data)
+
+
         ### SIGNALS NEED TO VALIDATE DATA CONTAINS COLUMNS (FEATURES) IT NEEDS
         signals    = self._generate_signals(self._data)
+        self._validate_signals(signals, self._data)
+
         targets = [] # Purely for performance review (notional)
     
         ###       STATEFUL      ###

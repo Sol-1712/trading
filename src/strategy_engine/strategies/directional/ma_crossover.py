@@ -86,7 +86,8 @@ class MACrossover(DirectionalStrategy[MACrossoverConfig]):
 
             if any(pd.isna(x) for x in (prev_f, prev_s, f, s)):
                 signals.append(None)
-                prev_f, prev_s = f, s
+                if not pd.isna(f): prev_f = f   
+                if not pd.isna(s): prev_s = s
                 continue
 
             prev_spread = prev_f - prev_s

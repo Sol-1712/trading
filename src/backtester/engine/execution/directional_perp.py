@@ -3,6 +3,7 @@ from backtester.engine.execution.fill import Fill, Order
 from backtester.portfolio.base        import Portfolio, PortfolioSnapshot
 
 import pandas as pd
+import numpy as np
 from typing import ClassVar
 
 
@@ -59,8 +60,14 @@ class PerpDirectionalEngine(ExecutionEngine):
     ) -> None:
         """
         Convert target position to a concrete order and queue for execution.
-
-        Called at end of bar t. Attempt Order fill at bar t + delay_bars.
+        
+        PRICE SEMANTICS:
+        - target_fraction is calculated using mark_close (MTM price)
+        - This represents desired exposure in mark value
+        - The order will execute at last_open (fill model price)
+        - This is intentional: target is mark-based, execution is at market
+        
+        Called at end of bar t. Attempt order fill at bar t + delay_bars.
 
         Parameters
         ----------
@@ -154,13 +161,14 @@ class PerpDirectionalEngine(ExecutionEngine):
                 self._pending_notional -= order.delta_notional
 
             else:
-                # Partial fill — reduce remaining, keep active
+                # Partial fill: create new order with remaining as new delta
                 fills.append(fill)
+                remaining_notional = order.remaining_notional - signed_notional_filled
                 remaining.append(Order(
                     placed_at          = order.placed_at,
                     exec_bar           = order.exec_bar,
-                    delta_notional     = order.delta_notional,
-                    remaining_notional = order.remaining_notional - signed_notional_filled
+                    delta_notional     = remaining_notional,  # CHANGED: remaining becomes new delta
+                    remaining_notional = remaining_notional
                 ))
                 self._pending_notional -= signed_notional_filled
 
@@ -171,4 +179,5 @@ class PerpDirectionalEngine(ExecutionEngine):
     def _is_reversal(self, delta_fraction: float) -> bool:
         if abs(self._pending_notional) <= self._FRACTION_TOLERANCE:
             return False
-        return (delta_fraction * self._pending_notional) < 0.0
+        # True if delta_fraction and _pending_notional point opposite directions
+        return (delta_fraction * np.sign(self._pending_notional)) < 0.0

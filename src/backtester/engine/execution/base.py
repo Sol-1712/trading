@@ -45,4 +45,4 @@ class ExecutionEngine(ABC):
     def _cancel_all_pending(self) -> None:
         self._queue.clear()
         self._pending.clear()
-        self._pending_fraction = 0.0
+        self._pending_notional = 0.0

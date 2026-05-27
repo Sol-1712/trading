@@ -46,3 +46,8 @@ Thumbs.db
 # Logs
 *.log
 
+
+# Agents
+.github/
+
+testlab.ipynb

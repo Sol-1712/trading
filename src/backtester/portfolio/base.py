@@ -43,7 +43,7 @@ class Portfolio:
         if not (0.0 <= fee_rate <= 0.01):
             raise ValueError(f"fee_rate {fee_rate} outside expected range [0, 0.01]")
         
-
+        self._initial_capital: float                   = initial_capital
         self._equity:          float                   = initial_capital
         self._position_units:  float                   = 0.0
         self._last_price:      float | None            = None
@@ -61,13 +61,21 @@ class Portfolio:
     ) -> PortfolioSnapshot:
         """
         Advance portfolio by one bar.
-
-        Order of operations
-        -------------------
-        1. MTM existing position close-to-close
-        2. Apply funding on existing position
-        3. Execute fills — update position, charge fees
-        4. Record snapshot at bar close
+        
+        ORDER OF OPERATIONS:
+        1. MTM existing position using mark_close (day's close price)
+        2. Apply funding based on position held at start of bar
+        3. Execute fills at execution prices (from fill model)
+        4. Record snapshot at mark_close (for position fraction calc)
+        
+        PRICE BASIS:
+        - bar_pnl: uses mark_close (MTM)
+        - position_fraction: uses mark_close (MTM for leverage calc)
+        - fills: use their own fill_price (from execution model)
+        
+        This separation is intentional:
+        - MTM uses mark (index price, more accurate)
+        - Execution uses last (market price, realistic)
 
         Parameters
         ----------
@@ -95,7 +103,7 @@ class Portfolio:
 
         # ── 2. Funding settlement ────────────────────────────────────────
         # Applied on position held at start of bar, at prev bar's close price.
-        # Negative funding_pnl = equity decreases (you paid).
+        # Negative funding_pnl = equity decreases -> I paid.
         funding_pnl   = -(self._position_units * prev_price * funding_rate)
         self._equity += funding_pnl
 
@@ -148,17 +156,10 @@ class Portfolio:
         """Current signed position in base asset units."""
         return self._position_units
    
-    @property
-    def total_funding(self) -> float:
-        """
-        Cumulative funding PnL over all bars.
-        Negative means net payer; positive means net receiver.
-        """
-        return self._total_funding
 
     @property
     def initial_capital(self) -> float:
-        return self.initial_capital
+        return self._initial_capital
 
     @property
     def n_bars(self) -> int:
@@ -200,7 +201,6 @@ class Portfolio:
         self._equity         = self.initial_capital
         self._position_units = 0.0
         self._last_price     = None
-        self._total_funding  = 0.0
         self._snapshots      = []
 
     # ------------------------------------------------------------------ #
