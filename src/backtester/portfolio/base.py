@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from datetime import datetime
 from typing import ClassVar, cast
 
@@ -9,6 +10,9 @@ import pandas as pd
 
 from backtester.portfolio.snapshot import PortfolioSnapshot
 from backtester.engine.execution.fill import Fill
+
+
+logger = logging.getLogger(__name__)
 
 
 class Portfolio:
@@ -37,18 +41,39 @@ class Portfolio:
     _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
     def __init__(self, initial_capital: float, fee_rate: float) -> None:
+        """
+        Initialize portfolio simulator.
+        
+        Parameters
+        ----------
+        initial_capital : float
+            Starting equity in quote currency (e.g., USDT).
+            Must be positive.
+        fee_rate : float
+            Proportional fee as decimal (e.g., 0.0005 = 0.05%).
+            Checked to be in range [0.0, 0.01].
+            
+        Raises
+        ------
+        ValueError
+            If initial_capital <= 0 or fee_rate outside [0, 0.01].
+        """
         
         if initial_capital <= 0:
             raise ValueError(f"initial_capital must be positive, got {initial_capital}")
         if not (0.0 <= fee_rate <= 0.01):
             raise ValueError(f"fee_rate {fee_rate} outside expected range [0, 0.01]")
         
-
+        self._initial_capital: float                   = initial_capital
         self._equity:          float                   = initial_capital
         self._position_units:  float                   = 0.0
         self._last_price:      float | None            = None
         self._fee_rate:        float                   = fee_rate
         self._snapshots:       list[PortfolioSnapshot] = []
+        
+        logger = logging.getLogger(__name__)
+        logger.debug("Portfolio initialized: capital=%.2f, fee_rate=%.5f", 
+                    initial_capital, fee_rate)
 
     # ------------------------------------------------------------------ #
     # Primary interface                                                     #
@@ -61,13 +86,21 @@ class Portfolio:
     ) -> PortfolioSnapshot:
         """
         Advance portfolio by one bar.
-
-        Order of operations
-        -------------------
-        1. MTM existing position close-to-close
-        2. Apply funding on existing position
-        3. Execute fills — update position, charge fees
-        4. Record snapshot at bar close
+        
+        ORDER OF OPERATIONS:
+        1. MTM existing position using mark_close (day's close price)
+        2. Apply funding based on position held at start of bar
+        3. Execute fills at execution prices (from fill model)
+        4. Record snapshot at mark_close (for position fraction calc)
+        
+        PRICE BASIS:
+        - bar_pnl: uses mark_close (MTM)
+        - position_fraction: uses mark_close (MTM for leverage calc)
+        - fills: use their own fill_price (from execution model)
+        
+        This separation is intentional:
+        - MTM uses mark (index price, more accurate)
+        - Execution uses last (market price, realistic)
 
         Parameters
         ----------
@@ -83,7 +116,21 @@ class Portfolio:
         """
 
         mtm_price = bar['mark_close']
+
+
         funding_rate = bar['funding_rate']
+
+        required_fields = ['mark_close', 'funding_rate']
+        for field in required_fields:
+            if field not in bar.index:
+                raise KeyError(f"Missing field: {field}")
+            
+        if not (0 < mtm_price < 1e10):
+            raise ValueError(f"Invalid mtm_price {mtm_price} at {bar.name}")
+        if not (-1.0 < funding_rate < 1.0):
+            raise ValueError(f"Invalid funding_rate {funding_rate}")
+
+              
         timestamp = cast(pd.Timestamp, bar.name).to_pydatetime()
 
         prev_price = self._last_price if self._last_price is not None else mtm_price
@@ -95,17 +142,33 @@ class Portfolio:
 
         # ── 2. Funding settlement ────────────────────────────────────────
         # Applied on position held at start of bar, at prev bar's close price.
-        # Negative funding_pnl = equity decreases (you paid).
+        # Negative funding_pnl = equity decreases -> I paid.
         funding_pnl   = -(self._position_units * prev_price * funding_rate)
         self._equity += funding_pnl
 
         # ── 3. Execute fills ─────────────────────────────────────────────
+        starting_equity = self._equity
+
         total_fee = 0.0
         for fill in fills:
-            fee            = abs(fill.units_filled) * fill.fill_price * self._fee_rate
-            self._equity  -= fee
-            total_fee      += fee
+            # Validate fill
+            if not (0 < fill.fill_price < 1e10):
+                raise ValueError(f"Invalid fill_price: {fill.fill_price}")
+            
+            # Calculate and validate fee
+            fee = abs(fill.units_filled) * fill.fill_price * self._fee_rate
+            if fee < 0:
+                raise ValueError(f"Negative fee: {fee}")
+            if fee > starting_equity:
+                raise ValueError(f"Fee {fee} exceeds equity {starting_equity}")
+            
+            self._equity -= fee
+            total_fee += fee
             self._position_units += fill.units_filled
+
+        # Verify state
+        if self._position_units != self._position_units:  # NaN check
+            raise RuntimeError("Position became NaN")
 
         # ── 4. Update price reference ────────────────────────────────────
         self._last_price = mtm_price
@@ -148,17 +211,10 @@ class Portfolio:
         """Current signed position in base asset units."""
         return self._position_units
    
-    @property
-    def total_funding(self) -> float:
-        """
-        Cumulative funding PnL over all bars.
-        Negative means net payer; positive means net receiver.
-        """
-        return self._total_funding
 
     @property
     def initial_capital(self) -> float:
-        return self.initial_capital
+        return self._initial_capital
 
     @property
     def n_bars(self) -> int:
@@ -175,15 +231,27 @@ class Portfolio:
 
     def history(self) -> pd.DataFrame:
         """
-        Convert snapshots to a DataFrame indexed by timestamp.
-        Called once after all bars are processed.
+        Convert accumulated snapshots to a DataFrame indexed by timestamp.
+        
+        Called once after all bars are processed. Suitable for metrics computation
+        and performance analysis.
+        
+        Returns
+        -------
+        pd.DataFrame
+            Portfolio state history with columns from PortfolioSnapshot fields
+            and timestamp as index. Empty DataFrame if no snapshots recorded.
         """
         if not self._snapshots:
+            logger.warning("Portfolio has no snapshot history")
             return pd.DataFrame()
 
-        return pd.DataFrame(
+        result = pd.DataFrame(
             [dataclasses.asdict(s) for s in self._snapshots]
         ).set_index("timestamp")
+        
+        logger.debug("Exported portfolio history: %d rows", len(result))
+        return result
 
     # ------------------------------------------------------------------ #
     # Lifecycle                                                             #
@@ -192,16 +260,17 @@ class Portfolio:
     def reset(self) -> None:
         """
         Reset portfolio to its initial state.
-
-        Useful for parameter sweeps or walk-forward loops where you want
-        to reuse the same Portfolio object across multiple runs without
-        re-instantiating it.
+        
+        Clears all snapshots and position state. Useful for parameter sweeps or
+        walk-forward loops where the same Portfolio object is reused.
+        Maintains original capital and fee configuration.
         """
         self._equity         = self.initial_capital
         self._position_units = 0.0
         self._last_price     = None
-        self._total_funding  = 0.0
         self._snapshots      = []
+        logger.debug("Portfolio reset to initial state: capital=%.2f", 
+                    self._initial_capital)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                       #

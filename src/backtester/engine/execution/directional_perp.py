@@ -3,6 +3,7 @@ from backtester.engine.execution.fill import Fill, Order
 from backtester.portfolio.base        import Portfolio, PortfolioSnapshot
 
 import pandas as pd
+import numpy as np
 from typing import ClassVar
 
 
@@ -59,8 +60,14 @@ class PerpDirectionalEngine(ExecutionEngine):
     ) -> None:
         """
         Convert target position to a concrete order and queue for execution.
-
-        Called at end of bar t. Attempt Order fill at bar t + delay_bars.
+        
+        PRICE SEMANTICS:
+        - target_fraction is calculated using mark_close (MTM price)
+        - This represents desired exposure in mark value
+        - The order will execute at last_open (fill model price)
+        - This is intentional: target is mark-based, execution is at market
+        
+        Called at end of bar t. Attempt order fill at bar t + delay_bars.
 
         Parameters
         ----------
@@ -72,9 +79,18 @@ class PerpDirectionalEngine(ExecutionEngine):
         bar : pd.Series
             Current bar 
         """
+
         if state.equity <= 0.0:
-            return # Brokie!
-        
+            raise RuntimeError(
+                f"Cannot submit order: portfolio ruined at {state.timestamp}. "
+                f"Equity: {state.equity}, Position: {state.position_units}"
+            )
+    
+        if not isinstance(target_fraction, (int, float)):
+            raise TypeError(f"target_fraction must be numeric, got {type(target_fraction)}")
+        if abs(target_fraction) > self.config.leverage_max:
+            raise ValueError(f"target_fraction {target_fraction} exceeds {self.config.leverage_max}")
+            
         price = bar['mark_close'] # mtm price
 
         current_fraction  = (state.position_units * price) / state.equity
@@ -154,13 +170,14 @@ class PerpDirectionalEngine(ExecutionEngine):
                 self._pending_notional -= order.delta_notional
 
             else:
-                # Partial fill — reduce remaining, keep active
+                # Partial fill: create new order with remaining as new delta
                 fills.append(fill)
+                remaining_notional = order.remaining_notional - signed_notional_filled
                 remaining.append(Order(
                     placed_at          = order.placed_at,
                     exec_bar           = order.exec_bar,
-                    delta_notional     = order.delta_notional,
-                    remaining_notional = order.remaining_notional - signed_notional_filled
+                    delta_notional     = remaining_notional,  # CHANGED: remaining becomes new delta
+                    remaining_notional = remaining_notional
                 ))
                 self._pending_notional -= signed_notional_filled
 
@@ -171,4 +188,8 @@ class PerpDirectionalEngine(ExecutionEngine):
     def _is_reversal(self, delta_fraction: float) -> bool:
         if abs(self._pending_notional) <= self._FRACTION_TOLERANCE:
             return False
-        return (delta_fraction * self._pending_notional) < 0.0
+        # True if delta_fraction and _pending_notional point opposite directions
+        pending_sign = np.sign(self._pending_notional)
+        target_sign = np.sign(delta_fraction)
+        
+        return pending_sign != target_sign  
