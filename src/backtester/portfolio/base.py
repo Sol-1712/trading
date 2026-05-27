@@ -91,7 +91,21 @@ class Portfolio:
         """
 
         mtm_price = bar['mark_close']
+
+
         funding_rate = bar['funding_rate']
+
+        required_fields = ['mark_close', 'funding_rate']
+        for field in required_fields:
+            if field not in bar.index:
+                raise KeyError(f"Missing field: {field}")
+            
+        if not (0 < mtm_price < 1e10):
+            raise ValueError(f"Invalid mtm_price {mtm_price} at {bar.name}")
+        if not (-1.0 < funding_rate < 1.0):
+            raise ValueError(f"Invalid funding_rate {funding_rate}")
+
+              
         timestamp = cast(pd.Timestamp, bar.name).to_pydatetime()
 
         prev_price = self._last_price if self._last_price is not None else mtm_price
@@ -108,12 +122,28 @@ class Portfolio:
         self._equity += funding_pnl
 
         # ── 3. Execute fills ─────────────────────────────────────────────
+        starting_equity = self._equity
+
         total_fee = 0.0
         for fill in fills:
-            fee            = abs(fill.units_filled) * fill.fill_price * self._fee_rate
-            self._equity  -= fee
-            total_fee      += fee
+            # Validate fill
+            if not (0 < fill.fill_price < 1e10):
+                raise ValueError(f"Invalid fill_price: {fill.fill_price}")
+            
+            # Calculate and validate fee
+            fee = abs(fill.units_filled) * fill.fill_price * self._fee_rate
+            if fee < 0:
+                raise ValueError(f"Negative fee: {fee}")
+            if fee > starting_equity:
+                raise ValueError(f"Fee {fee} exceeds equity {starting_equity}")
+            
+            self._equity -= fee
+            total_fee += fee
             self._position_units += fill.units_filled
+
+        # Verify state
+        if self._position_units != self._position_units:  # NaN check
+            raise RuntimeError("Position became NaN")
 
         # ── 4. Update price reference ────────────────────────────────────
         self._last_price = mtm_price

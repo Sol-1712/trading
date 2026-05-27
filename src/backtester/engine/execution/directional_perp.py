@@ -79,9 +79,18 @@ class PerpDirectionalEngine(ExecutionEngine):
         bar : pd.Series
             Current bar 
         """
+
         if state.equity <= 0.0:
-            return # Brokie!
-        
+            raise RuntimeError(
+                f"Cannot submit order: portfolio ruined at {state.timestamp}. "
+                f"Equity: {state.equity}, Position: {state.position_units}"
+            )
+    
+        if not isinstance(target_fraction, (int, float)):
+            raise TypeError(f"target_fraction must be numeric, got {type(target_fraction)}")
+        if abs(target_fraction) > self.config.leverage_max:
+            raise ValueError(f"target_fraction {target_fraction} exceeds {self.config.leverage_max}")
+            
         price = bar['mark_close'] # mtm price
 
         current_fraction  = (state.position_units * price) / state.equity
@@ -180,4 +189,7 @@ class PerpDirectionalEngine(ExecutionEngine):
         if abs(self._pending_notional) <= self._FRACTION_TOLERANCE:
             return False
         # True if delta_fraction and _pending_notional point opposite directions
-        return (delta_fraction * np.sign(self._pending_notional)) < 0.0
+        pending_sign = np.sign(self._pending_notional)
+        target_sign = np.sign(delta_fraction)
+        
+        return pending_sign != target_sign  
