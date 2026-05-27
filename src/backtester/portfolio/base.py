@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import logging
 from datetime import datetime
 from typing import ClassVar, cast
 
@@ -9,6 +10,9 @@ import pandas as pd
 
 from backtester.portfolio.snapshot import PortfolioSnapshot
 from backtester.engine.execution.fill import Fill
+
+
+logger = logging.getLogger(__name__)
 
 
 class Portfolio:
@@ -37,6 +41,23 @@ class Portfolio:
     _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
     def __init__(self, initial_capital: float, fee_rate: float) -> None:
+        """
+        Initialize portfolio simulator.
+        
+        Parameters
+        ----------
+        initial_capital : float
+            Starting equity in quote currency (e.g., USDT).
+            Must be positive.
+        fee_rate : float
+            Proportional fee as decimal (e.g., 0.0005 = 0.05%).
+            Checked to be in range [0.0, 0.01].
+            
+        Raises
+        ------
+        ValueError
+            If initial_capital <= 0 or fee_rate outside [0, 0.01].
+        """
         
         if initial_capital <= 0:
             raise ValueError(f"initial_capital must be positive, got {initial_capital}")
@@ -49,6 +70,10 @@ class Portfolio:
         self._last_price:      float | None            = None
         self._fee_rate:        float                   = fee_rate
         self._snapshots:       list[PortfolioSnapshot] = []
+        
+        logger = logging.getLogger(__name__)
+        logger.debug("Portfolio initialized: capital=%.2f, fee_rate=%.5f", 
+                    initial_capital, fee_rate)
 
     # ------------------------------------------------------------------ #
     # Primary interface                                                     #
@@ -206,15 +231,27 @@ class Portfolio:
 
     def history(self) -> pd.DataFrame:
         """
-        Convert snapshots to a DataFrame indexed by timestamp.
-        Called once after all bars are processed.
+        Convert accumulated snapshots to a DataFrame indexed by timestamp.
+        
+        Called once after all bars are processed. Suitable for metrics computation
+        and performance analysis.
+        
+        Returns
+        -------
+        pd.DataFrame
+            Portfolio state history with columns from PortfolioSnapshot fields
+            and timestamp as index. Empty DataFrame if no snapshots recorded.
         """
         if not self._snapshots:
+            logger.warning("Portfolio has no snapshot history")
             return pd.DataFrame()
 
-        return pd.DataFrame(
+        result = pd.DataFrame(
             [dataclasses.asdict(s) for s in self._snapshots]
         ).set_index("timestamp")
+        
+        logger.debug("Exported portfolio history: %d rows", len(result))
+        return result
 
     # ------------------------------------------------------------------ #
     # Lifecycle                                                             #
@@ -223,15 +260,17 @@ class Portfolio:
     def reset(self) -> None:
         """
         Reset portfolio to its initial state.
-
-        Useful for parameter sweeps or walk-forward loops where you want
-        to reuse the same Portfolio object across multiple runs without
-        re-instantiating it.
+        
+        Clears all snapshots and position state. Useful for parameter sweeps or
+        walk-forward loops where the same Portfolio object is reused.
+        Maintains original capital and fee configuration.
         """
         self._equity         = self.initial_capital
         self._position_units = 0.0
         self._last_price     = None
         self._snapshots      = []
+        logger.debug("Portfolio reset to initial state: capital=%.2f", 
+                    self._initial_capital)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                       #

@@ -1,39 +1,38 @@
+import logging
 import numpy as np
 from functools import cached_property
 from backtester.utils import compute_sharpe
 
+logger = logging.getLogger(__name__)
+
 class CostMetrics:
     """
     Computes cost-based metrics from a CoreStats object.
-
-    This class provides key metrics:
-
-    - Total fees
-    - Total funding
-    - Total costs
-    - Total feels pct net
-    - Total funding pct net
-    - Total costs pct net
-    - Cost to gross ratio
-    - Pct bars paying funding
-    - Avg fee per bar
-    - Annualised turnover
-    - Fee drag on sharpe
-    - Funding drag on sharpe
-
-    Attributes:
-        core (CoreStats): Precomputed core statistics and returns from PnL.
+    
+    Quantifies impact of trading costs (fees and funding) on returns and Sharpe ratio.
+    Provides per-bar costs, cumulative drag, and cost ratios for performance analysis.
+    
+    Parameters
+    ----------
+    core : CoreStats
+        Precomputed core statistics with fee_pnl, funding_pnl, and returns.
+        
+    Raises
+    ------
+    ValueError
+        If core is None or missing required attributes.
     """
 
-
     def __init__(self, core):
-        """
-        Initializes CostMetrics with a CoreStats object.
-
-        Args:
-            core (CoreStats): Object containing primitive statistics and returns.
-        """
-        self.core             = core
+        if core is None:
+            raise ValueError("core cannot be None")
+        if not hasattr(core, 'fee_pnl') or core.fee_pnl is None:
+            raise ValueError("core must have 'fee_pnl' attribute")
+        if not hasattr(core, 'funding_pnl') or core.funding_pnl is None:
+            raise ValueError("core must have 'funding_pnl' attribute")
+            
+        self.core = core
+        logger.debug("CostMetrics initialized with %d observations", core.n_obs)
         
 
     @cached_property

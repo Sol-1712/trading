@@ -1,35 +1,37 @@
+import logging
 import numpy as np
 from functools import cached_property
 
+logger = logging.getLogger(__name__)
 
 class RiskMetrics:
     """
     Computes risk-based metrics from a CoreStats object.
-
-    This class provides key metrics:
-    - Volatility
-    - Calmar ratio
-    - Max drawdown
-    - Time in drawdown
-    - Max drawdown duration
-    - Avg drawdown duration
-    - Downside deviation
-    - Longest losing streak
-    - VaR (95%, 99%)
-    - CVaR (95%, 99%)
-
-    Attributes:
-        core (CoreStats): Precomputed core statistics and returns from PnL.
+    
+    Quantifies volatility, drawdown, tail risk, and related metrics.
+    Provides annualized and cumulative risk statistics for portfolio analysis.
+    
+    Parameters
+    ----------
+    core : CoreStats
+        Precomputed core statistics with equity series and returns.
+        
+    Raises
+    ------
+    ValueError
+        If core is None or missing required attributes.
     """
 
     def __init__(self, core):
-        """
-        Initializes RiskMetrics with CoreStats objects.
-
-        Args:
-            core (CoreStats): Object containing primitive statistics and returns.
-        """
+        if core is None:
+            raise ValueError("core cannot be None")
+        if not hasattr(core, 'equity') or core.equity is None:
+            raise ValueError("core must have 'equity' attribute")
+        if not hasattr(core, 'log_returns') or core.log_returns is None:
+            raise ValueError("core must have 'log_returns' attribute")
+            
         self.core = core
+        logger.debug("RiskMetrics initialized with %d observations", core.n_obs)
 
 
     @property

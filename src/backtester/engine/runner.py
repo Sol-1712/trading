@@ -18,19 +18,36 @@ from backtester.portfolio                    import Portfolio
 logger = logging.getLogger(__name__)
 
 class BacktestRunner:
+    """
+    Orchestrates a complete backtest: loads data, computes features, generates signals,
+    and simulates execution via portfolio and execution engine.
+    
+    The runner enforces a clear separation between stateless signal generation (data +
+    features → signals) and stateful execution (bar-by-bar portfolio updates).
+    
+    Parameters
+    ----------
+    config : BacktestConfig
+        Backtest configuration including data source, execution parameters, and capital.
+    strategy : StrategyBase
+        Strategy implementation to generate signals. Must implement DirectionalStrategy
+        for current execution path.
+        
+    Raises
+    ------
+    ValueError
+        If initial_capital is non-positive (validated by BacktestConfig).
+    """
 
     def __init__(self, config: BacktestConfig, strategy: StrategyBase):
-        """
-        Parameters
-        ----------
-        config : BacktestConfig
-        strategy : StrategyBase
-        """
+        if config is None:
+            raise ValueError("config cannot be None")
+        if strategy is None:
+            raise ValueError("strategy cannot be None")
+            
         self.config           = config
         self.strategy         = strategy
 
-
-        # Initialise objects
         self._data:           pd.DataFrame
 
         self._registry        = FeatureRegistry()
@@ -38,49 +55,153 @@ class BacktestRunner:
                 config.initial_capital, 
                 self.config.execution.fee_rate
                 )
-        # Will need to be any engine -> resolve engine function
         self._engine          = PerpDirectionalEngine(self.config.execution)
+        logger.debug("BacktestRunner initialized with strategy=%s", 
+                    type(self.strategy).__name__)
 
 
     def _load_data(self) -> pd.DataFrame:
-        """ 
-        Load requested market data as a pandas dataframe.
+        """
+        Load market data for backtest period.
+        
+        Requests data based on strategy requirements (price types and columns).
+        Raises on missing or invalid data.
+        
+        Returns
+        -------
+        pd.DataFrame
+            Market data indexed by timestamp with requested columns.
+            
+        Raises
+        ------
+        ValueError
+            If returned data is empty or has zero rows.
         """
         requirements = self.strategy.data_requirements()
-        return prepare_data(
-            config      = self.config.data,         # symbol, interval, dates
-            price_types = requirements.price_types, # which klines file to load
-            columns     = requirements.columns,     # optional column filter
+        data = prepare_data(
+            config      = self.config.data,
+            price_types = requirements.price_types,
+            columns     = requirements.columns,
         )
+        
+        if data is None or data.empty:
+            raise ValueError("Data loader returned empty DataFrame")
+        
+        logger.info("Loaded %d bars from %s to %s", 
+                   len(data), data.index[0], data.index[-1])
+        return data
 
 
     def _compute_features(self, data: pd.DataFrame) -> pd.DataFrame:
+        """
+        Compute strategy-required features from raw market data.
+        
+        Registers strategy features and computes batch for all bars.
+        Currently only supports DirectionalStrategy.
+        
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Raw market data indexed by timestamp.
+            
+        Returns
+        -------
+        pd.DataFrame
+            Input data plus computed feature columns.
+            
+        Raises
+        ------
+        NotImplementedError
+            If strategy type is not DirectionalStrategy.
+        ValueError
+            If data is None or empty.
+        """
+        if data is None or data.empty:
+            raise ValueError("Cannot compute features on empty data")
+            
         if not isinstance(self.strategy, DirectionalStrategy):
             raise NotImplementedError(
                 f"Feature computation not supported for {type(self.strategy).__name__}"
             )
         self.strategy.register_features(self._registry)
         required_features = self.strategy.required_features()
-        return self._registry.compute_batch(data, required_features)
-
-
-    # Directional method
-    def _generate_signals(self, data: pd.DataFrame) -> list[Signal]:
+        result = self._registry.compute_batch(data, required_features)
         
+        logger.debug("Computed %d features across %d bars", 
+                    len(required_features), len(result))
+        return result
+
+
+    def _generate_signals(self, data: pd.DataFrame) -> list[Signal]:
+        """
+        Generate trading signals from market data and computed features.
+        
+        Delegates to strategy's signal generator. Signals must be timestamped
+        at or before corresponding bar timestamp (no lookahead).
+        
+        Parameters
+        ----------
+        data : pd.DataFrame
+            Market data with all required features already computed.
+            
+        Returns
+        -------
+        list[Signal]
+            List of Signal objects (or None entries for bars with no signal).
+            Length equals data row count.
+            
+        Raises
+        ------
+        NotImplementedError
+            If strategy type is not DirectionalStrategy.
+        ValueError
+            If data is None or empty.
+        """
+        if data is None or data.empty:
+            raise ValueError("Cannot generate signals from empty data")
+            
         if not isinstance(self.strategy, DirectionalStrategy):
             raise NotImplementedError(
                 f"Signal generation not supported for {type(self.strategy).__name__}"
             )
 
-        return self.strategy.generate_signals(data)     
+        signals = self.strategy.generate_signals(data)
+        logger.debug("Generated %d signal events from %d bars", 
+                    sum(1 for s in signals if s is not None), len(signals))
+        return signals
 
 
     def _validate_signals(self, signals: list[Signal], data: pd.DataFrame) -> None:
-        """Verify signals use only t-1 and earlier data."""
+        """
+        Validate signals for correctness and lookahead bias.
+        
+        Checks:
+        - Signal count matches data length
+        - Signal timestamps are at or before corresponding bar
+        - Signal timestamps fall within dataset range
+        
+        Parameters
+        ----------
+        signals : list[Signal]
+            Signal list to validate (may contain None entries).
+        data : pd.DataFrame
+            Market data signals were generated from.
+            
+        Raises
+        ------
+        ValueError
+            If signal count mismatches data length.
+        ValueError
+            If lookahead is detected (signal timestamp after bar).
+        ValueError
+            If signal timestamp predates dataset start.
+        """
+        if signals is None or data is None or data.empty:
+            raise ValueError("Signals and data must be non-None and non-empty")
+            
         if len(signals) != len(data):
             raise ValueError(f"Signal count {len(signals)} != data rows {len(data)}")
         
-        # More sophisticated: check signal timestamps align with bar timestamps
         for t, signal in enumerate(signals):
             if signal is None:
                 continue
@@ -107,79 +228,113 @@ class BacktestRunner:
 
     def _size_pos(self, signal: Signal) -> float | None:
         """
-        Dirty stub for now.
+        Convert signal to a signed target position fraction.
+        
+        Delegates to position sizer. Returns None if no sizing action needed.
+        
+        Parameters
+        ----------
+        signal : Signal | None
+            Signal to size. None signals return None (no action).
+            
+        Returns
+        -------
+        float | None
+            Signed target position as fraction of equity (e.g., 0.5 = 50% long).
+            None means no action (keep current position).
+            
+        Raises
+        ------
+        ValueError
+            If signal produces invalid position (NaN or ±inf).
         """
-        return simple_size(signal)
+        result = simple_size(signal)
+        
+        if result is not None and (np.isnan(result) or np.isinf(result)):
+            raise ValueError(f"Position sizer returned invalid position: {result}")
+        
+        return result
 
 
-    def _apply_risk(
-        self, 
-        target: float
-    ) -> float | None:
+    def _apply_risk(self, target: float) -> float | None:
         """
-        Hook for risk engine. Adjusts raw position targets before execution.
-        Currently a passthrough — RiskEngine integration added here.
+        Apply risk adjustments to target position.
+        
+        Currently a passthrough (no risk limits). Designed as integration point
+        for future RiskEngine that may reduce, block, or adjust position targets.
+        
+        Parameters
+        ----------
+        target : float
+            Raw target position from position sizer as fraction of equity.
+            
+        Returns
+        -------
+        float | None
+            Risk-adjusted target position. May differ from input if risk engine
+            is active. Returns None if position should be skipped.
         """
         return target
     
     
 
     def run_NEW(self) -> BacktestResults:
-        ###       STATELESS       ###
-        # ------------------------- #
+        """
+        Execute full backtest: data load → feature computation → signal generation
+        → bar-by-bar execution simulation.
         
+        PHASE 1 (Stateless): Load data, compute features, generate signals.
+        PHASE 2 (Stateful): Loop through bars, execute orders, track portfolio state.
+        
+        Returns
+        -------
+        BacktestResults
+            Complete backtest output including price data, signals, targets, and
+            portfolio history (equity, positions, PnL components by bar).
+            
+        Raises
+        ------
+        ValueError
+            If validation fails (empty data, signal/data mismatch, lookahead).
+        RuntimeError
+            If portfolio or engine enters invalid state during execution.
+        """
+        # PHASE 1: Stateless
+        logger.info("Starting backtest run")
         self._data = self._load_data()
         self._data = self._compute_features(self._data)
 
-
-        ### SIGNALS NEED TO VALIDATE DATA CONTAINS COLUMNS (FEATURES) IT NEEDS
-        signals    = self._generate_signals(self._data)
+        signals = self._generate_signals(self._data)
         self._validate_signals(signals, self._data)
 
-        targets = [] # Purely for performance review (notional)
+        targets = []
+        logger.info("Phase 1 complete: data and signals ready, entering execution loop")
     
-        ###       STATEFUL      ###
-        # ------------------------- #
-
-        # Loop
+        # PHASE 2: Stateful
         for t in range(len(self._data)):
             
             bar = self._data.iloc[t]
 
-            fills = self._engine.execute_pending(bar, t) # Needs to be none if no pending
+            fills = self._engine.execute_pending(bar, t)
 
-
-            # Update portfolio with fills, funding, mtm.
-            # Returns a portfolio snapshot
             state = self._portfolio.step(fills, bar)
 
-
             signal = signals[t] 
-            
             target = self._size_pos(signal)
+            targets.append(target)
 
-            # Skip for now -> RISK ENGINE
-            # target = self._risk.apply(target, state)
-
-            targets.append(target) # For results
-
-
-            if target is None: # No new target (Position/Risk happy with current exposure)
+            if target is None:
                 continue
 
-            # 'mark_close' is the mtm price column
-            self._engine.submit(target, state, bar) # Submit the new target to the execution engine
+            self._engine.submit(target, state, bar)
 
-
-        # Loop is finished, return results
         history = self._portfolio.history()
+        logger.info("Backtest complete: %d bars processed, final equity=%.2f",
+                   len(self._data), self._portfolio.equity)
 
         return BacktestResults(
             data    = self._data,
             signals = signals,
             targets = targets,
             portfolio_history = history,
-            #report = PerformanceReport(history)
         )
-
-
