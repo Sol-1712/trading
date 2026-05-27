@@ -34,15 +34,16 @@ class BacktestRunner:
 
         self._registry        = FeatureRegistry()
         self._portfolio       = Portfolio(
-            config.initial_capital, 
-            self.config.execution.fee_rate
-            )
-        # Will need to be any engine
+                config.initial_capital, 
+                self.config.execution.fee_rate
+                )
+        # Will need to be any engine -> resolve engine function
         self._engine          = PerpDirectionalEngine(self.config.execution)
 
 
     def _load_data(self) -> pd.DataFrame:
-        """ Load requested market data as a pandas dataframe.
+        """ 
+        Load requested market data as a pandas dataframe.
         """
         requirements = self.strategy.data_requirements()
         return prepare_data(
@@ -73,23 +74,22 @@ class BacktestRunner:
         return self.strategy.generate_signals(data)     
 
 
-    def _size_pos(self, signals: list[Signal]) -> pd.Series:
+    def _size_pos(self, signal: Signal) -> float | None:
         """
         Dirty stub for now.
         """
-        return simple_size(signals)
+        return simple_size(signal)
 
 
     def _apply_risk(
         self, 
-        targets: pd.Series, 
-        data:    pd.DataFrame,
-    ) -> pd.Series:
+        target: float
+    ) -> float | None:
         """
         Hook for risk engine. Adjusts raw position targets before execution.
         Currently a passthrough — RiskEngine integration added here.
         """
-        return targets
+        return target
     
     
 
@@ -101,27 +101,17 @@ class BacktestRunner:
         self._data = self._compute_features(self._data)
         ### SIGNALS NEED TO VALIDATE DATA CONTAINS COLUMNS (FEATURES) IT NEEDS
         signals    = self._generate_signals(self._data)
-
-        
-
-        ### TEMPORARILY STATELESS ###
-        # ------------------------- #
-
-        targets          = self._size_pos(signals)
-        targets_adjusted = self._apply_risk(targets, self._data)
-
-        ###       STATEFULL      ###
+        targets = [] # Purely for performance review (notional)
+    
+        ###       STATEFUL      ###
         # ------------------------- #
 
         # Loop
         for t in range(len(self._data)):
             
-            ### KEY: Orders submitted at t are NOT stepped until t+1
             bar = self._data.iloc[t]
-            timestamp = bar.name
 
-
-            fills = self._engine.execute_pending(bar) # Needs to be none if no pending
+            fills = self._engine.execute_pending(bar, t) # Needs to be none if no pending
 
 
             # Update portfolio with fills, funding, mtm.
@@ -129,19 +119,21 @@ class BacktestRunner:
             state = self._portfolio.step(fills, bar)
 
 
-            # Skip for now.
-            # signal = signals[t] ?
-            # target = self._position_constructor.build(signal, state)
+            signal = signals[t] 
+            
+            target = self._size_pos(signal)
+
+            # Skip for now -> RISK ENGINE
             # target = self._risk.apply(target, state)
 
+            targets.append(target) # For results
 
 
-            # Submit new order(s) based on targets.
-            # Make sure the timesteps line up properly (KEY)
-            # -> A target coming at close of bar t is submitted at 
-            self._engine.submit(targets[t], state, bar ,t)
-            
+            if target is None: # No new target (Position/Risk happy with current exposure)
+                continue
 
+            # 'mark_close' is the mtm price column
+            self._engine.submit(target, state, bar) # Submit the new target to the execution engine
 
 
         # Loop is finished, return results
@@ -150,12 +142,9 @@ class BacktestRunner:
         return BacktestResults(
             data    = self._data,
             signals = signals,
-            targets = targets_adjusted,
+            targets = targets,
             portfolio_history = history,
             #report = PerformanceReport(history)
         )
 
 
-
-    def _resolve_price_column(self):
-        pass

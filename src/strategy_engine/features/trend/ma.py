@@ -33,17 +33,6 @@ class MovingAverage(Feature, ABC):
         pass
 
 
-class SMA(MovingAverage):
-
-    @property
-    def name(self) -> str:
-        return f'sma_{self._period}_{self._column}'
-    
-
-    def _compute(self, series: pd.Series) -> pd.Series:
-        return series.rolling(self._period).mean()
-    
-    
 class MAType(str, Enum):
     SMA = "sma"
     EMA = "ema"
@@ -55,6 +44,20 @@ class MAType(str, Enum):
             case MAType.EMA: return EMA(period, column)
             case MAType.WMA: return WMA(period, column)
             case _: raise ValueError(f"Unhandled MAType: {self}")
+
+
+class SMA(MovingAverage):
+
+    @property
+    def name(self) -> str:
+        return f'sma_{self._period}_{self._column}'
+    
+
+    def _compute(self, series: pd.Series) -> pd.Series:
+        return series.rolling(self._period).mean()
+    
+    
+
 
 
 class EMA(MovingAverage):

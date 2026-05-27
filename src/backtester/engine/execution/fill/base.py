@@ -3,17 +3,17 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+import pandas as pd
 
 
 class FillModel(ABC):
 
     @abstractmethod
-    def fill(self, order: Order) -> Fill:
+    def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
         """
         Given an order intent and bar data, return the actual fill.
         Determines fill price and whether order was fully executed.
         """
-        ...
 
 
 @dataclass(frozen=True)
@@ -27,5 +27,7 @@ class Fill:
 
 @dataclass(frozen=True)
 class Order:
-    timestamp:       datetime
-    delta_units:     float
+    placed_at:          datetime
+    exec_bar:           int
+    delta_notional:     float    # signed dollar amount committed — fixed at submission
+    remaining_notional: float    # decreases as partially filled

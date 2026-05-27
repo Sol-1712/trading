@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
+import pandas as pd
 
 
 @dataclasses.dataclass(slots=True)
@@ -35,13 +36,14 @@ class PortfolioSnapshot:
         True if the position changed (|delta_units| > numerical tolerance).
     """
 
-    timestamp:       datetime
-    price:           float
-    target_fraction: float
-    position_units:  float
-    equity:          float
-    bar_pnl:         float
-    funding_pnl:     float
-    fee:             float
-    trade_occurred:  bool
-    leverage:        float
+    timestamp:         datetime
+    price:             float     # bar close — used for fraction/leverage calculation
+    position_units:    float     # post-fill
+    position_fraction: float     # post-fill: (units × price) / equity
+    equity:            float     # post-fill
+    bar_pnl:           float     # MTM from price movement
+    funding_pnl:       float     # funding payment (negative = paid, positive = received)
+    fees:              float     # total fees paid this bar
+    net_pnl:           float     # bar_pnl + funding_pnl - fee
+    leverage:          float     # abs(position_fraction)
+    trade_occurred:    bool

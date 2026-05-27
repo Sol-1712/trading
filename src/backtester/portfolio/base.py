@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
-from typing import ClassVar
+from typing import ClassVar, cast
 
 import numpy as np
 import pandas as pd
 
 from backtester.portfolio.snapshot import PortfolioSnapshot
+from backtester.engine.execution.fill import Fill
 
 
 class Portfolio:
@@ -35,23 +36,19 @@ class Portfolio:
 
     _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
-    def __init__(self, 
-                 initial_capital: float, 
-                 fee_rate: float
-                 ) -> None:
+    def __init__(self, initial_capital: float, fee_rate: float) -> None:
         
         if initial_capital <= 0:
             raise ValueError(f"initial_capital must be positive, got {initial_capital}")
         if not (0.0 <= fee_rate <= 0.01):
             raise ValueError(f"fee_rate {fee_rate} outside expected range [0, 0.01]")
         
-        # Mutable state — modified only by step()
-        self._equity:          float
-        self._position_units:  float
-        self._last_price:      float | None
-        self._total_fees:      float
-        self._total_funding:   float
-        self._snapshots:       list[PortfolioSnapshot]
+
+        self._equity:          float                   = initial_capital
+        self._position_units:  float                   = 0.0
+        self._last_price:      float | None            = None
+        self._fee_rate:        float                   = fee_rate
+        self._snapshots:       list[PortfolioSnapshot] = []
 
     # ------------------------------------------------------------------ #
     # Primary interface                                                     #
@@ -59,37 +56,25 @@ class Portfolio:
 
     def step(
         self,
-        timestamp:       datetime,
-        fill_price:      float,
-        target_fraction: float,
-        funding_rate:    float = 0.0,
+        fills:           list[Fill],
+        bar:             pd.Series
     ) -> PortfolioSnapshot:
         """
-        Advance the portfolio by one bar.
+        Advance portfolio by one bar.
 
-        Order of operations (matters for correctness):
-            1. MTM existing position at new price
-            2. Apply funding on existing position
-            4. Convert fraction → units using post-MTM equity
-            5. Compute trade delta, apply fees
-            6. Update state, record and return snapshot
+        Order of operations
+        -------------------
+        1. MTM existing position close-to-close
+        2. Apply funding on existing position
+        3. Execute fills — update position, charge fees
+        4. Record snapshot at bar close
 
         Parameters
         ----------
-        timestamp : datetime
-            Bar timestamp. Used as the index key in history().
-        price : float
-            Execution price for this bar. The engine is responsible for
-            applying any delay_bars offset before calling this method.
-        target_fraction : float
-            Desired position as a signed fraction of current equity.
-            +1.0 → fully long, -1.0 → fully short, 0.0 → flat.
-            Values beyond ±1.0 imply leverage.
-        funding_rate : float, optional
-            Funding rate for this bar. Non-zero only on funding settlement bars.
-            Positive rate → longs pay shorts (equity decreases if long).
-            Negative rate → shorts pay longs (equity decreases if short).
-            Default 0.0 (no funding event this bar).
+        fills : list[Fill]
+            Fills from execute_pending. Empty list if no fills this bar.
+        bar: pd.Series
+            Current bar.
 
         Returns
         -------
@@ -97,10 +82,56 @@ class Portfolio:
             Immutable record of state after this bar.
         """
 
-        if fill_price <= 0.0:
-            raise ValueError(f"price must be positive, got {fill_price} at {timestamp}")
+        mtm_price = bar['mark_close']
+        funding_rate = bar['funding_rate']
+        timestamp = cast(pd.Timestamp, bar.name).to_pydatetime()
 
-        pass
+        prev_price = self._last_price if self._last_price is not None else mtm_price
+
+        # ── 1. MTM existing position ─────────────────────────────────────
+        # Position held during this bar earns close-to-close price change.
+        bar_pnl      = self._position_units * (mtm_price - prev_price)
+        self._equity += bar_pnl
+
+        # ── 2. Funding settlement ────────────────────────────────────────
+        # Applied on position held at start of bar, at prev bar's close price.
+        # Negative funding_pnl = equity decreases (you paid).
+        funding_pnl   = -(self._position_units * prev_price * funding_rate)
+        self._equity += funding_pnl
+
+        # ── 3. Execute fills ─────────────────────────────────────────────
+        total_fee = 0.0
+        for fill in fills:
+            fee            = abs(fill.units_filled) * fill.fill_price * self._fee_rate
+            self._equity  -= fee
+            total_fee      += fee
+            self._position_units += fill.units_filled
+
+        # ── 4. Update price reference ────────────────────────────────────
+        self._last_price = mtm_price
+
+        # ── 5. Derived values ────────────────────────────────────────────
+        if self._equity > 0:
+            position_fraction = (self._position_units * mtm_price) / self._equity
+        else:
+            position_fraction = 0.0
+
+        snapshot = PortfolioSnapshot(
+            timestamp         = timestamp,
+            price             = mtm_price,
+            position_units    = self._position_units,
+            position_fraction = position_fraction,
+            equity            = self._equity,
+            bar_pnl           = bar_pnl,
+            funding_pnl       = funding_pnl,
+            fees               = total_fee,
+            net_pnl           = bar_pnl + funding_pnl - total_fee,
+            leverage          = abs(position_fraction),
+            trade_occurred    = len(fills) > 0,
+        )
+
+        self._snapshots.append(snapshot)
+        return snapshot
 
 
     # ------------------------------------------------------------------ #
@@ -116,12 +147,7 @@ class Portfolio:
     def position_units(self) -> float:
         """Current signed position in base asset units."""
         return self._position_units
-
-    @property
-    def total_fees(self) -> float:
-        """Cumulative fees paid over all bars processed so far."""
-        return self._total_fees
-    
+   
     @property
     def total_funding(self) -> float:
         """
@@ -149,21 +175,15 @@ class Portfolio:
 
     def history(self) -> pd.DataFrame:
         """
-        Return the full per-bar history as a DataFrame.
-
-        Index   : timestamp (datetime)
-        Columns : price, target_fraction, position_units, equity,
-                  bar_pnl, fee, trade_occurred
-
-        Returns an empty DataFrame if no bars have been processed.
+        Convert snapshots to a DataFrame indexed by timestamp.
+        Called once after all bars are processed.
         """
         if not self._snapshots:
             return pd.DataFrame()
 
-        rows = [dataclasses.asdict(s) for s in self._snapshots]
-        df   = pd.DataFrame(rows).set_index("timestamp")
-        df.index.name = "timestamp"
-        return df
+        return pd.DataFrame(
+            [dataclasses.asdict(s) for s in self._snapshots]
+        ).set_index("timestamp")
 
     # ------------------------------------------------------------------ #
     # Lifecycle                                                             #
@@ -180,7 +200,6 @@ class Portfolio:
         self._equity         = self.initial_capital
         self._position_units = 0.0
         self._last_price     = None
-        self._total_fees     = 0.0
         self._total_funding  = 0.0
         self._snapshots      = []
 
@@ -215,7 +234,6 @@ class Portfolio:
             f"Portfolio("
             f"equity={self._equity:,.2f}, "
             f"position_units={self._position_units:.6f}, "
-            f"total_fees={self._total_fees:,.2f}, "
             f"n_bars={self.n_bars}"
             f")"
         )

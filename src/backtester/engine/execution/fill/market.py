@@ -1,5 +1,8 @@
-
 from .base import FillModel, Order, Fill
+
+import pandas as pd
+from typing import cast
+
 
 class MarketFillModel(FillModel):
     """
@@ -10,16 +13,19 @@ class MarketFillModel(FillModel):
     - Always fully filled — no partial fills
     - No slippage beyond what open price reflects
 
-    This is the correct default for bar-level backtesting with delay_bars >= 1.
-    Filling at close would introduce look-ahead bias.
     """
 
-    def fill(self, order: Order) -> Fill:
+    def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
+         
+        fill_price = bar['last_open'] # Fill model specific
+        units = order.delta_notional / fill_price
+        timestamp = cast(pd.Timestamp, bar.name).to_pydatetime()
 
         fill = Fill(
-            order.timestamp,
+            placed_at = order.placed_at,
+            filled_at = timestamp,
+            units_filled= units,
+            fill_price=fill_price
             )
 
-
-
-        pass
+        return fill

@@ -25,8 +25,6 @@ class DirectionalStrategy(StrategyBase[ConfigT], ABC):
         super().__init__(config)
         self._features: list[Feature] | None = None
 
-        self._signal_state: SignalDirection  = SignalDirection.FLAT
-
 
     @abstractmethod
     def _build_features(self) -> list[Feature]:

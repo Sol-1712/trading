@@ -18,11 +18,12 @@ class ExecutionEngine(ABC):
 
     def __init__(self, config: ExecutionConfig) -> None:
         self.config = config
-        self._fill_model = config.fill_model or MarketFillModel()
+        self._fill_model                = config.fill_model or MarketFillModel()
         self._queue:   dict[int, Order] = {}  # bar_index → Order (awaiting submission to fill model)
         self._pending: list[Order]      = []  # orders actively being attempted by fill model
-        self._pending_fraction: float = 0.0   # Needs to be a list for multi asset
-
+        self._pending_notional: float   = 0.0 # Needs to be a list for multi asset
+        self._current_bar: int          = 0
+        self._active: list[Order]       = []
 
 
     @abstractmethod
@@ -34,13 +35,11 @@ class ExecutionEngine(ABC):
 
 
     @abstractmethod
-    def execute_pending(self, bar: pd.Series) -> list[Fill]:
+    def execute_pending(self, bar: pd.Series, t: int) -> list[Fill]:
         """
         Attempt fills on all pending orders against current bar.
         Removes filled orders from queue.
         Returns all fills that occurred this bar.
-        Also needs to cancel 'stuck' orders (not filling)
-        i.e for directional, if previous order did not fill, cancel as new order units will = desired units.
         """
 
     def _cancel_all_pending(self) -> None:

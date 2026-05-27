@@ -9,6 +9,6 @@ from backtester.metrics import PerformanceReport
 class BacktestResults:
     data:                 pd.DataFrame
     signals:              list[Signal]
-    targets:              pd.Series
+    targets:              list[float]
     portfolio_history:    pd.DataFrame
     #report:               PerformanceReport
