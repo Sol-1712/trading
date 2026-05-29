@@ -4,7 +4,7 @@ import pandas as pd
 import key
 import logging
 
-from crypto_quant.data_utils.io import load_partitioned_parquet, save_partitioned_parquet, get_stored_range
+from crypto_quant.data_utils.io import save_partitioned_parquet, get_stored_range
 from crypto_quant.data_utils.paths import make_data_path
 from crypto_quant.data_utils.fetch import BybitFetcher
 from crypto_quant.data_utils.enums import PriceType, DataType
