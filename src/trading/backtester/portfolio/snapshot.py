@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
-import pandas as pd
 
 
 @dataclasses.dataclass(slots=True)

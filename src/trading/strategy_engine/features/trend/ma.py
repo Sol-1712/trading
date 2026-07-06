@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import pandas as pd
 from enum import Enum
 
@@ -40,10 +39,14 @@ class MAType(str, Enum):
 
     def build(self, period: int, column: str) -> MovingAverage:
         match self:
-            case MAType.SMA: return SMA(period, column)
-            case MAType.EMA: return EMA(period, column)
-            case MAType.WMA: return WMA(period, column)
-            case _: raise ValueError(f"Unhandled MAType: {self}")
+            case MAType.SMA: 
+                return SMA(period, column)
+            case MAType.EMA: 
+                return EMA(period, column)
+            case MAType.WMA: 
+                return WMA(period, column)
+            case _: 
+                raise ValueError(f"Unhandled MAType: {self}")
 
 
 class SMA(MovingAverage):

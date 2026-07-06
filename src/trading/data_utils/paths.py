@@ -20,7 +20,6 @@ Directory layout::
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 import trading
 from trading.data_utils.enums import PriceType, DataType

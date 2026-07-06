@@ -1,6 +1,6 @@
 from trading.backtester.engine.execution      import ExecutionConfig, ExecutionEngine
 from trading.backtester.engine.execution.fill import Fill, Order
-from trading.backtester.portfolio.base        import Portfolio, PortfolioSnapshot
+from trading.backtester.portfolio.base        import PortfolioSnapshot
 
 import pandas as pd
 import numpy as np

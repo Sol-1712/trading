@@ -2,7 +2,6 @@ import logging
 from dataclasses import dataclass
 import pandas as pd
 from trading.strategy_engine.core import Signal
-from trading.backtester.metrics import PerformanceReport
 
 logger = logging.getLogger(__name__)
 

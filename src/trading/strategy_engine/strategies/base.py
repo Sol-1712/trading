@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Generic, TypeVar
 from dataclasses import dataclass
 from trading.data_utils.enums import PriceType

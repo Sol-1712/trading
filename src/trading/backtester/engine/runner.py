@@ -3,7 +3,6 @@ import pandas as pd
 import logging
 
 from trading.data_utils.prepare                      import prepare_data
-from trading.backtester.metrics.performance_report   import PerformanceReport
 from trading.backtester.engine.config                import BacktestConfig
 from trading.backtester.engine.execution             import PerpDirectionalEngine
 from trading.strategy_engine.strategies              import StrategyBase

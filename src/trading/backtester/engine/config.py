@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from trading.data_utils.enums import PriceType
 from trading.data_utils.config import DataConfig
 from trading.backtester.engine.execution import ExecutionConfig
 

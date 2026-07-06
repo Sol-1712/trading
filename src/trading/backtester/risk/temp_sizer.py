@@ -1,5 +1,4 @@
 import logging
-import pandas as pd
 from trading.strategy_engine.core.signal import Signal, SignalDirection
 
 logger = logging.getLogger(__name__)

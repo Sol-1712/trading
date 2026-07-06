@@ -13,4 +13,5 @@ __all__ = [
     "RiskMetrics",
     "CostMetrics",
     "PositionMetrics",
+    "display_report",
 ]

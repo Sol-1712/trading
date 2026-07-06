@@ -147,8 +147,6 @@ def get_stored_range(path: str | Path) -> tuple[pd.Timestamp, pd.Timestamp] | No
             logger.warning("No valid month directories found in year directory: %s", year_dir)
             return None
 
-        year  = int(year_dir.name.split("=")[1])
-        month = int(month_dir.name.split("=")[1])
         file_path = month_dir / "data.parquet"
 
         if file_path.exists():

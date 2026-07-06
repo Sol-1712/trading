@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import pandas as pd
 
 from trading.backtester.engine.execution import ExecutionConfig
-from trading.backtester.portfolio.base import Portfolio, PortfolioSnapshot
+from trading.backtester.portfolio.base import PortfolioSnapshot
 from trading.backtester.engine.execution.fill import Order, Fill, MarketFillModel
 
 logger = logging.getLogger(__name__)
