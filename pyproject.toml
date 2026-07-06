@@ -1,28 +1,17 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "crypto-quant"
+name = "trading"
 version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
 dependencies = [
-  "numpy",
-  "pandas",
-  "matplotlib",
-  "pyarrow",
-  "pybit",
-  "jupyter",
-  "ipykernel",
-  "numba",
-  "scipy",
-  "pyyaml",
-  
+    "ipython>=9.15.0",
+    "numba>=0.66.0",
+    "numpy>=2.4.6",
+    "pandas>=3.0.3",
+    "pybit>=5.16.0",
+    "scipy>=1.18.0",
 ]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-include = ["crypto_quant*"]
-

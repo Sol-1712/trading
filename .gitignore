@@ -1,18 +1,31 @@
-# Ignore secret API keys
-key.py
-
-# Python cache
+# Python-generated files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
 
 # Editor configs
 .vscode/
 
+# API KEY
+key.py
+
+# Junk
+TODO.txt
+WATCH.txt
+NEXT.txt
+testlab.ipynb
+
+# Agents
+.github/
+
 # Ignore strategies
 docs/strategy_notes/strategy_ideas.txt
-
 
 # Data
 data/
@@ -20,33 +33,3 @@ data/
 *.feather
 *.csv
 *.h5
-
-*.txt
-
-defunct/
-.venv/
-*.egg-info/
-
-# Python bytecode
-*.pyc
-*.pyo
-*.pyd
-
-# Distribution / packaging
-build/
-dist/
-
-# Jupyter
-.ipynb_checkpoints/
-
-# OS junk
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Agents
-.github/
-
-testlab.ipynb

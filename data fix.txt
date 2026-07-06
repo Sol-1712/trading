@@ -1,0 +1,44 @@
+CRITICAL ISSUES (Stop-the-line)
+#	Issue	File	Impact
+1	Concurrent write race	io.py:77-103	Last write wins, earlier data lost
+2	Non-atomic parquet write	io.py:98	Crash mid-write → file corrupted forever
+3	Partial month commit crash	io.py:71-74	Dataset permanently corrupted on crash
+4	Silent partition load failure	io.py:305-308	1/12 partitions fails → silently skipped, backtest uses incomplete data
+5	Empty DataFrame schema corruption	fetch.py:392 + prepare.py	Failed fetch type returns empty → merge succeeds with corrupted schema
+🟠 HIGH-PRIORITY ISSUES (Fix soon)
+Merge mode doesn't log what data was replaced
+API failure indistinguishable from exhausted data (returns None)
+Timezone handling fragile (silent corruption if TZ-aware data)
+get_stored_range() blind to interior gaps
+Concurrent read/write unprotected
+PARQUET HANDLING
+Aspect	Status	Risk
+Append vs Rewrite?	Rewrite entire partition each time	Inefficient but acceptable for 1-month chunks
+Incremental Safe?	NO - Race condition + no transactions	Can corrupt dataset permanently
+Ordering Preserved?	YES within partition; no guarantee under concurrency	OK for single-threaded; breaks under parallel access
+🛡️ MISSING SAFEGUARDS
+❌ Data lineage logging (when/how data fetched)
+❌ Schema validation before write
+❌ Deduplication config (hard-coded keep="last")
+❌ Atomic multi-partition transactions
+❌ Explicit failure modes (None vs empty vs exception used inconsistently)
+✅ MINIMAL FIX SET (14 items)
+CRITICAL (Do first — 5 items):
+
+Atomic parquet write (write to temp file, atomic rename)
+File locking on partition write (fcntl/msvcrt)
+Transaction log or all-or-nothing semantics for multi-partition writes
+Fail fast on partition load failure
+Schema validation before merge
+HIGH (Do next — 5 items):
+6. Merge audit logging (log what was replaced)
+7. Distinguish API failure from exhausted data
+8. Validate timestamp TZ handling
+9. Detect gaps in get_stored_range()
+10. Add file lock for concurrent read/write
+
+MEDIUM (Do soon — 4+ items):
+11. Timestamp ordering validation
+12. Deduplication strategy config + logging
+13. Data completeness check after load
+14. Rate limit handling (HTTP 429 detection)
