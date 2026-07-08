@@ -8,12 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+.env
 
 # Editor configs
 .vscode/
 
-# API KEY
-key.py
 
 # Junk
 TODO.txt

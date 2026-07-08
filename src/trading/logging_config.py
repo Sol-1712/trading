@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-PROJECT_ROOT_LOGGER = "crypto_quant"
+PROJECT_ROOT_LOGGER = "trading"
 
 def setup_logging(
     console_level: int = logging.INFO,

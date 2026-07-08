@@ -1,3 +1,5 @@
+from trading.data_utils.enums import PriceType
+
 from .base import FillModel, Order, Fill
 
 import pandas as pd
@@ -16,6 +18,10 @@ class MarketFillModel(FillModel):
 
     """
 
+    def __init__(self, price_type: PriceType) -> None:
+        self._open_col = f"{price_type.value}_open"
+
+
     def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
 
         if 'last_open' not in bar.index:
@@ -23,7 +29,8 @@ class MarketFillModel(FillModel):
                 f"Column 'last_open' not found in bar. Available: {bar.index.tolist()}"
             )
         
-        fill_price = bar['last_open']
+        col        = self._open_col if self._open_col in bar.index else "open"
+        fill_price = float(bar[col])
         
         if fill_price <= 0:
             raise ValueError(

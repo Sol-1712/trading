@@ -5,16 +5,15 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "ipykernel>=7.3.0",
     "numba>=0.66.0",
     "numpy>=2.0,<3",
     "pandas>=2.2",
+    "pyarrow>=24.0.0",
     "pybit>=5.16.0",
     "pyyaml>=6.0.3",
     "scipy>=1.18.0",
 ]
-
-[tool.setuptools]
-package-dir = {"" = "src"}
 
 [dependency-groups]
 dev = [
@@ -22,3 +21,12 @@ dev = [
     "pytest>=9.1.1",
     "ruff>=0.15.20",
 ]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100

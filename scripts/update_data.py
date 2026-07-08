@@ -1,16 +1,20 @@
+import os
+API_KEY = os.getenv('BYBIT_API_KEY')
+API_SECRET = os.getenv('BYBIT_API_SECRET')
+
 from pathlib import Path
 from pybit.unified_trading import HTTP
 import pandas as pd
-import key
 import logging
 
-from crypto_quant.data_utils.io import save_partitioned_parquet, get_stored_range
-from crypto_quant.data_utils.paths import make_data_path
-from crypto_quant.data_utils.fetch import BybitFetcher
-from crypto_quant.data_utils.enums import PriceType, DataType
+from trading.data_utils.io import save_partitioned_parquet, get_stored_range
+from trading.data_utils.paths import make_data_path
+from trading.data_utils.fetch import BybitFetcher
+from trading.data_utils.enums import PriceType, DataType
 
 
 logger = logging.getLogger(__name__)
+
 # Can't handle D W M (Also make sure intervals are valid please or it dies)
 SYMBOLS = ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"]
 INTERVALS = [5, 15, 30, 60]  # minutes
@@ -147,12 +151,12 @@ def run(fetcher: BybitFetcher,
 
 
 if __name__ == "__main__":
-
+    
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
     )
-    session = HTTP(testnet=False, api_key=key.BYBIT_API_KEY, api_secret=key.BYBIT_API_SECRET)
+    session = HTTP(testnet=False, api_key=API_KEY, api_secret=API_SECRET)
     fetcher = BybitFetcher(session)
     run(fetcher, SYMBOLS, INTERVALS, START)
      

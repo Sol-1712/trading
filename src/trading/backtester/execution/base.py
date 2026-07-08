@@ -3,9 +3,9 @@ import logging
 from abc import ABC, abstractmethod
 import pandas as pd
 
-from trading.backtester.engine.execution import ExecutionConfig
+from trading.backtester.engine.config import ExecutionConfig
 from trading.backtester.portfolio.base import PortfolioSnapshot
-from trading.backtester.engine.execution.fill import Order, Fill, MarketFillModel
+from trading.backtester.fill import Order, Fill, MarketFillModel
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class ExecutionEngine(ABC):
             raise ValueError("config cannot be None")
             
         self.config = config
-        self._fill_model                = config.fill_model or MarketFillModel()
+        self._fill_model                = config.fill_model or MarketFillModel(config.execution_price_type)
         self._queue:   dict[int, Order] = {}
         self._pending: list[Order]      = []
         self._pending_notional: float   = 0.0

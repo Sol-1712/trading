@@ -4,7 +4,7 @@ import logging
 
 from trading.data_utils.prepare                      import prepare_data
 from trading.backtester.engine.config                import BacktestConfig
-from trading.backtester.engine.execution             import PerpDirectionalEngine
+from trading.backtester.execution                    import PerpDirectionalEngine
 from trading.strategy_engine.strategies              import StrategyBase
 from trading.strategy_engine.strategies.directional  import DirectionalStrategy
 from trading.strategy_engine.features                import FeatureRegistry

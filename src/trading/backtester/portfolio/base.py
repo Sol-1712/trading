@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 from trading.backtester.portfolio.snapshot import PortfolioSnapshot
-from trading.backtester.engine.execution.fill import Fill
+from trading.backtester.fill import Fill
 
 
 logger = logging.getLogger(__name__)

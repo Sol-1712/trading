@@ -1,0 +1,64 @@
+2026-07-08 09:57:42 | DEBUG    | trading.backtester.portfolio.base | Portfolio initialized: capital=100000.00, fee_rate=0.00055
+2026-07-08 09:57:42 | DEBUG    | trading.backtester.execution.base | ExecutionEngine initialized with config: ExecutionConfig
+2026-07-08 09:57:42 | DEBUG    | trading.backtester.engine.runner | BacktestRunner initialized with strategy=MACrossover
+2026-07-08 09:57:42 | INFO     | trading.backtester.engine.runner | Starting backtest run
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=01\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=02\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=03\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=05\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=07\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=10\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=11\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=04\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=06\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=09\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=12\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
+2026-07-08 09:57:42 | ERROR    | trading.data_utils.io | Failed to load partition C:\Users\SBBus\PROJECTS\trading\data\raw\bybit\BTCUSDT\klines\60m\mark\year=2025\month=08\data.parquet: Unable to find a usable engine; tried using: 'pyarrow', 'fastparquet'.
+A suitable version of pyarrow or fastparquet is required for parquet support.
+Trying to import the above resulted in these errors:
+ - `Import pyarrow` failed. pyarrow is required for parquet support. Use pip or conda to install the pyarrow package.
+ - `Import fastparquet` failed. fastparquet is required for parquet support. Use pip or conda to install the fastparquet package.
