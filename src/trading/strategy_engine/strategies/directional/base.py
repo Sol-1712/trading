@@ -3,7 +3,7 @@ from datetime import datetime
 import pandas as pd
 
 from trading.strategy_engine.core.enums import SignalDirection
-from trading.strategy_engine.strategies import StrategyBase, ConfigT
+from trading.strategy_engine.core import StrategyBase, ConfigT
 from trading.strategy_engine.features import Feature, FeatureRegistry
 from trading.strategy_engine.core import Signal
 

@@ -3,10 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from trading.data_utils.config import DataConfig
-from trading.data_utils.enums import PriceType
+from trading.data_utils.core.config import DataConfig
+from trading.data_utils.core.enums import PriceType
 from trading.backtester.risk.config import RiskConfig
-
+from trading.backtester.fill import MarketFillModel
 
 
 if TYPE_CHECKING:
@@ -24,10 +24,9 @@ class RunConfig:
 @dataclass(frozen=True)
 class ExecutionConfig:
     """Execution simulation parameters only. No risk constraints."""
-    fee_rate:             float
-    delay_bars:           int              = 1
-    execution_price_type: PriceType        = PriceType.LAST
-    fill_model:           FillModel | None = field(default=None, hash=False, compare=False)
+    fee_rate:   float
+    delay_bars: int       = 1
+    fill_model: FillModel = field(default_factory= MarketFillModel, hash=False, compare=False)
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.fee_rate <= 0.01:
@@ -35,9 +34,10 @@ class ExecutionConfig:
         if self.delay_bars < 1:
             raise ValueError(f"delay_bars must be >= 1, got {self.delay_bars}")
         
-        object.__setattr__(
-            self, "execution_price_type", PriceType(self.execution_price_type)
-        )
+    @property
+    def execution_price_type(self) -> PriceType:
+        """Derived from fill model — fill model is the authority on price series."""
+        return self.fill_model.price_type
 
 
 @dataclass(frozen=True)

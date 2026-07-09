@@ -17,7 +17,7 @@ wheels/
 # Junk
 TODO.txt
 WATCH.txt
-NEXT.txt
+NEXT.md
 data_fix.txt
 testlab.ipynb
 
@@ -33,3 +33,6 @@ data/
 *.feather
 *.csv
 *.h5
+
+# Logs
+logs/

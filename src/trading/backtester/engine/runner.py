@@ -3,9 +3,9 @@ import pandas as pd
 import logging
 
 from trading.data_utils.prepare                      import prepare_data
-from trading.backtester.engine.config                import BacktestConfig
+from trading.backtester.engine.config_bases                import BacktestConfig
 from trading.backtester.execution                    import PerpDirectionalEngine
-from trading.strategy_engine.strategies              import StrategyBase
+from trading.strategy_engine.core                    import StrategyBase, DataRequirements
 from trading.strategy_engine.strategies.directional  import DirectionalStrategy
 from trading.strategy_engine.features                import FeatureRegistry
 from trading.strategy_engine.core                    import Signal
@@ -76,11 +76,15 @@ class BacktestRunner:
         ValueError
             If returned data is empty or has zero rows.
         """
-        requirements = self.strategy.data_requirements()
+
+        signal_type = self.strategy.data_requirements().price_type
+        execution_type = self.config.execution.price_type
+        price_types = tuple({signal_type, execution_type})
+        
         data = prepare_data(
             config      = self.config.data,
-            price_types = requirements.price_types,
-            columns     = requirements.columns,
+            price_types = price_types,
+            columns     = self.strategy.data_requirements().columns,
         )
         
         if data is None or data.empty:

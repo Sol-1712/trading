@@ -1,9 +1,10 @@
 import logging
 import pandas as pd
+from pathlib import Path
 
-from trading.data_utils.enums  import PriceType, DataType
-from trading.data_utils.config import DataConfig
-from trading.data_utils.paths  import make_data_path
+from trading.data_utils.core.enums  import PriceType, DataType
+from trading.data_utils.core.config import DataConfig
+from trading.data_utils.core.paths  import make_data_path
 from trading.data_utils.io     import load_partitioned_parquet
 
 
@@ -84,6 +85,8 @@ def _load_klines(config: DataConfig, price_type: PriceType) -> pd.DataFrame:
             f"{config.interval}m | {price_type.value} | "
             f"{config.start:%Y-%m-%d} → {config.end:%Y-%m-%d}"
         )
+    
+    _check_gaps(df, config.interval, path)
     return df
 
 
@@ -157,4 +160,38 @@ def _validate(data: pd.DataFrame, config: DataConfig) -> None:
             "Data ends at %s, earlier than requested %s. "
             "Results will cover a shorter window.",
             actual_end.date(), requested_end.date(),
+        )
+
+
+def _check_gaps(
+    df:       pd.DataFrame,
+    interval: int,
+    path:     Path,
+) -> None:
+    """
+    Warn if data contains gaps larger than the expected bar interval.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Loaded data with DatetimeIndex.
+    interval : int
+        Expected bar interval in minutes.
+    path : Path
+        Dataset path — used in warning message only.
+    """
+    if len(df) < 2:
+        return
+
+    expected_delta = pd.Timedelta(minutes=interval)
+    deltas         = df.index.to_series().diff().dropna()
+    gaps           = deltas[deltas > expected_delta * 1.5]  # 50% tolerance
+
+    if not gaps.empty:
+        logger.warning(
+            "%d gap(s) detected in %s. Largest: %s at %s.",
+            len(gaps),
+            path,
+            gaps.max(),
+            gaps.idxmax(),
         )

@@ -18,133 +18,11 @@ from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from typing import Callable
 import pandas as pd
 
-from trading.data_utils.enums import PriceType
+from trading.data_utils.core.enums import PriceType
+from trading.data_utils.core import KLINE_SCHEMAS, FUNDING_SCHEMA
+from trading.data_utils.pagination import fetch_paginated
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Type aliases & schemas
-# ---------------------------------------------------------------------------
-
-# Bybit returns kline rows as ordered lists, not dicts, so column order is
-# load-bearing. Centralising these schemas here means a Bybit API change
-# requires exactly one edit, not a hunt across multiple functions.
-_KLINE_SCHEMA: dict[PriceType, dict[str, list[str]]] = {
-    PriceType.LAST: {
-        "raw_cols": ["timestamp", "open", "high", "low", "close", "volume", "turnover"],
-        "numeric_cols": ["open", "high", "low", "close", "volume", "turnover"],
-    },
-    PriceType.MARK: {
-        "raw_cols": ["timestamp", "open", "high", "low", "close"],
-        "numeric_cols": ["open", "high", "low", "close"],
-    },
-    PriceType.INDEX: {
-        "raw_cols": ["timestamp", "open", "high", "low", "close"],
-        "numeric_cols": ["open", "high", "low", "close"],
-    },
-}
-
-_FUNDING_COLS: list[str] = ["funding_rate", "timestamp"]
-
-
-# ---------------------------------------------------------------------------
-# Pagination engine
-# ---------------------------------------------------------------------------
-
-def _fetch_paginated(
-    call_fn: Callable[[int, int], pd.DataFrame],
-    time_col: str,
-    start: int,
-    end: int,
-    max_retries: int = 3,
-    retry_delay: float = 1.0,
-) -> pd.DataFrame:
-    """
-    Generic backward-walking pagination engine.
-
-    Repeatedly calls ``call_fn(start, end)`` until the earliest returned
-    timestamp reaches ``start``, or no data is returned.
-
-
-    Parameters
-    ----------
-    call_fn : Callable[[int, int], pd.DataFrame]
-        Function accepting (start_ms, end_ms), returning one page of data.
-        Must include ``time_col`` as a column. Must return an empty DataFrame
-        (not raise) when no data exists in the given window.
-    time_col : str
-        Column containing Unix timestamps in milliseconds.
-    start : int
-        Earliest timestamp to fetch (ms, inclusive).
-    end : int
-        Latest timestamp to fetch (ms, inclusive).
-    max_retries : int
-        Retry attempts per page on transient failure.
-    retry_delay : float
-        Base backoff delay in seconds (doubles each retry).
-
-    Returns
-    -------
-    pd.DataFrame
-        Chronologically sorted, deduplicated result. Empty if nothing returned.
-    """
-    pages: list[pd.DataFrame] = []
-    current_end = end
-
-    while current_end > start:
-        page = _call_with_retry(call_fn, start, current_end, max_retries, retry_delay)
-
-        if page is None or page.empty:
-            break
-        page[time_col] = page[time_col].astype("int64")
-        pages.append(page)
-
-        earliest = page[time_col].min()
-
-        # Stop if this page already covers back to (or past) our start.
-        if earliest <= start:
-            break
-
-        current_end = earliest - 1
-
-    if not pages:
-        return pd.DataFrame()
-
-    return (
-        pd.concat(pages, ignore_index=True)
-        .drop_duplicates(subset=[time_col])
-        .sort_values(time_col)
-        .reset_index(drop=True)
-    )
-
-
-def _call_with_retry(
-    call_fn: Callable[[int, int], pd.DataFrame],
-    start: int,
-    end: int,
-    max_retries: int,
-    retry_delay: float,
-) -> pd.DataFrame | None:
-    """
-    Call ``call_fn(start, end)`` with exponential backoff on failure.
-    """
-    for attempt in range(max_retries):
-        try:
-            return call_fn(start, end)
-        except Exception as exc:
-            wait = retry_delay * (2 ** attempt)
-            logger.warning(
-                "API call failed (attempt %d/%d): %s. Retrying in %.1fs.",
-                attempt + 1,
-                max_retries,
-                exc,
-                wait,
-            )
-            time.sleep(wait)
-
-    logger.error("API call abandoned after %d attempts.", max_retries)
-    return None
 
 
 # ---------------------------------------------------------------------------
@@ -272,7 +150,7 @@ class BybitFetcher:
             UTC DatetimeIndex. Columns: ``open, high, low, close``
             (plus ``volume, turnover`` for ``"last"``). All float64.
         """
-        schema = _KLINE_SCHEMA[price_type]
+        schema = KLINE_SCHEMAS[price_type]
         raw_cols: list[str] = schema["raw_cols"]
         numeric_cols: list[str] = schema["numeric_cols"]
         api_method = self._get_kline_api_method(price_type)
@@ -302,7 +180,7 @@ class BybitFetcher:
             end,
         )
 
-        raw = _fetch_paginated(
+        raw = fetch_paginated(
             call_fn=call_fn,
             time_col="timestamp",
             start=start,
@@ -317,6 +195,7 @@ class BybitFetcher:
 
         raw[numeric_cols] = raw[numeric_cols].astype("float64")
         return self._to_datetime_index(raw)
+
 
     def fetch_all_kline_types(
         self,
@@ -472,38 +351,39 @@ class BybitFetcher:
 
         def call_fn(s: int, e: int) -> pd.DataFrame:
             response = self._session.get_funding_rate_history(
-                category=self.category,
-                symbol=symbol,
-                startTime=s,
-                endTime=e,
-                limit=self.funding_limit,
+                category  = self.category,
+                symbol    = symbol,
+                startTime = s,
+                endTime   = e,
+                limit     = self.funding_limit,
             )
             data = response["result"]["list"]
             if not data:
-                return pd.DataFrame(columns=_FUNDING_COLS)
-            # Rename Bybit's camelCase fields to snake_case immediately,
-            # before any data leaves this closure.
-            df = pd.DataFrame(data)
-            df = df[["fundingRate", "fundingRateTimestamp"]].rename(columns={
-                "fundingRate": "funding_rate",
-                "fundingRateTimestamp": "timestamp"
-            })
-            return df
+                return pd.DataFrame(columns=list(FUNDING_SCHEMA.rename_map.values()))
+
+            return (
+                pd.DataFrame(data)[list(FUNDING_SCHEMA.raw_cols)]
+                .rename(columns=FUNDING_SCHEMA.rename_map)
+            )
 
         logger.info("Fetching funding rate history for %s.", symbol)
 
-        raw = _fetch_paginated(
-            call_fn=call_fn,
-            time_col="timestamp",
-            start=start,
-            end=end,
-            max_retries=self.max_retries,
-            retry_delay=self.retry_delay,
+        raw = fetch_paginated(
+            call_fn     = call_fn,
+            time_col    = "timestamp",
+            start       = start,
+            end         = end,
+            max_retries = self.max_retries,
+            retry_delay = self.retry_delay,
         )
 
         if raw.empty:
             logger.warning("No funding rate data returned for %s.", symbol)
             return raw
 
-        raw["funding_rate"] = raw["funding_rate"].astype("float64")
+        raw[list(FUNDING_SCHEMA.numeric_cols)] = (
+            raw[list(FUNDING_SCHEMA.numeric_cols)].astype("float64")
+        )
         return self._to_datetime_index(raw)
+    
+

@@ -3,7 +3,7 @@ import logging
 from abc import ABC, abstractmethod
 import pandas as pd
 
-from trading.backtester.engine.config import ExecutionConfig
+from trading.backtester.engine.config_bases import ExecutionConfig
 from trading.backtester.portfolio.base import PortfolioSnapshot
 from trading.backtester.fill import Order, Fill, MarketFillModel
 

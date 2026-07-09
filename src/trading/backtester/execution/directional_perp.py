@@ -1,7 +1,7 @@
 from trading.backtester.execution      import ExecutionEngine
 from trading.backtester.fill           import Fill, Order
 from trading.backtester.portfolio.base import PortfolioSnapshot
-from trading.backtester.engine.config  import ExecutionConfig
+from trading.backtester.engine.config_bases  import ExecutionConfig
 
 import pandas as pd
 import numpy as np
@@ -155,7 +155,7 @@ class PerpDirectionalEngine(ExecutionEngine):
         remaining = []
 
         for order in self._active:
-            fill = self._fill_model.attempt_fill(order, bar)
+            fill = self._fill_model.attempt(order, bar)
 
             if fill is None:
                 # No fill this bar — order stays active

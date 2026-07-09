@@ -22,14 +22,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import trading
-from trading.data_utils.enums import PriceType, DataType
+from trading.data_utils.core.enums import PriceType, DataType
 
 
 PROJECT_ROOT = Path(trading.__file__).resolve().parents[2]
 
 DATA_ROOT    = PROJECT_ROOT / "data" / "raw"
-CONFIGS_ROOT = PROJECT_ROOT / "research" / "configs"
-LOGS_ROOT    = PROJECT_ROOT / "research" / "logs"
+CONFIGS_ROOT = PROJECT_ROOT / "configs"
+LOGS_ROOT    = PROJECT_ROOT / "logs"
 
 DEFAULT_EXCHANGE = 'bybit'
 

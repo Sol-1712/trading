@@ -4,11 +4,11 @@ from pathlib import Path
 import yaml
 from typing import Any
 
-from .config import BacktestConfig, ExecutionConfig, RunConfig
-from trading.data_utils.config import DataConfig
+from .config_bases import BacktestConfig, ExecutionConfig, RunConfig
+from trading.data_utils.core.config import DataConfig
 from trading.backtester.risk import RiskConfig
-from trading.data_utils.enums import PriceType
-from trading.data_utils.paths import CONFIGS_ROOT
+from trading.data_utils.core.enums import PriceType
+from trading.data_utils.core.paths import CONFIGS_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ _DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d"]
 
 
 def load_config(
-    file:      str | Path     = "default.yaml",
+    file:      str | Path     = "default_update.yaml",
     overrides: dict[str, Any] | None = None,
 ) -> BacktestConfig:
     """
@@ -27,7 +27,7 @@ def load_config(
     
     Parameters
     ----------
-    file : str, default "default.yaml"
+    file : str, default "default_update.yaml"
         Configuration filename (relative to DEFAULT_PATH).
     overrides : dict[str, Any] | None
         Optional key-value overrides using dot notation for nested fields.
@@ -45,7 +45,7 @@ def load_config(
         If YAML is malformed or required fields are missing.
     """
 
-    path = CONFIGS_ROOT / file if isinstance(file, str) else file
+    path = CONFIGS_ROOT / 'backtest' / file if isinstance(file, str) else file
 
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")

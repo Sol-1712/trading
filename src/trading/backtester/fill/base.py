@@ -6,6 +6,8 @@ from datetime import datetime
 import logging
 import pandas as pd
 
+from trading.data_utils.core.enums import PriceType
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,6 +19,14 @@ class FillModel(ABC):
     timing given an order and bar data. Can model slippage, partial fills,
     and execution delays.
     """
+
+    @property
+    @abstractmethod
+    def price_type(self) -> PriceType:
+        """
+        Price type used for fill price calculations.
+        Fill model is the authority on which price series to use.
+        """
 
     @abstractmethod
     def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:

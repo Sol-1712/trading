@@ -81,27 +81,46 @@ def _write_partition(
     month: int,
     mode: WriteMode,
 ) -> None:
-    """Write a single month partition."""
+    """Write a single month partition atomically. """
+
     partition_dir = dataset_path / f"year={year}" / f"month={month:02d}"
     partition_dir.mkdir(parents=True, exist_ok=True)
+    
     file_path = partition_dir / "data.parquet"
+    tmp_path  = partition_dir / "data.parquet.tmp"
 
-    if mode == "merge" and file_path.exists():
-        existing = pd.read_parquet(file_path)
-        combined = (
-            pd.concat([existing, group])
-            .pipe(_ensure_utc_datetime_index)
-            .sort_index()
-        )
-        # Resolve duplicates: last write wins.
-        combined = combined[~combined.index.duplicated(keep="last")]
-        combined.to_parquet(file_path)
-        logger.debug("Merged %s (%d rows).", file_path, len(combined))
+    try:
+        if mode == "merge" and file_path.exists():
+            existing = pd.read_parquet(file_path)
+            combined = (
+                pd.concat([existing, group])
+                .pipe(_ensure_utc_datetime_index)
+                .sort_index()
+            )
+            # Resolve duplicates: last write wins.
+            combined = combined[~combined.index.duplicated(keep="last")]
+            _validate_partition(combined, year, month)
 
-    else:
-        group.to_parquet(file_path)
-        logger.debug("Wrote %s (%d rows).", file_path, len(group))
+            combined.to_parquet(file_path)
+            logger.debug(
+                "Merged partition %s: %d existing + %d new = %d rows.",
+                file_path, len(existing), len(group), len(combined),
+            )
 
+        else:
+            _validate_partition(group, year, month)
+            group.to_parquet(tmp_path)
+
+            logger.debug("Wrote partition %s (%d rows).", file_path, len(group))
+
+            # Atomic rename — only replaces file_path if write succeeded
+            tmp_path.rename(file_path)
+
+    except Exception:
+        # Clean up temp file on any failure
+        if tmp_path.exists():
+            tmp_path.unlink()
+        raise
 
 # ---------------------------------------------------------------------------
 # Read
@@ -229,6 +248,28 @@ def load_partitioned_parquet(
             f"Loaded data from {path} does not have a DatetimeIndex. "
             "Ensure data was saved via save_partitioned_parquet."
         )
+    
+    if result.index.tz is None or str(result.index.tz) != "UTC":
+        raise ValueError(
+            f"Loaded data from {path} has unexpected timezone: {result.index.tz}. "
+            f"Expected UTC."
+        )
+    
+    if not result.index.is_monotonic_increasing:
+        raise ValueError(
+            f"Loaded data from {path} is not sorted ascending after concat. "
+            f"Check partition files for overlapping timestamps."
+        )
+    
+    # Duplicate timestamps after concat — indicates overlapping partitions
+    n_dupes = result.index.duplicated().sum()
+    if n_dupes > 0:
+        logger.warning(
+            "Found %d duplicate timestamps in %s after concat. "
+            "Keeping last occurrence. Check partition boundaries.",
+            n_dupes, path,
+        )
+        result = result[~result.index.duplicated(keep="last")]
 
     # Precise row-level filtering after combining partitions.
     if start_ts is not None:
@@ -290,11 +331,33 @@ def _load_partitions_parallel(
     cols: list[str] | None,
     max_workers: int,
 ) -> list[pd.DataFrame]:
-    """Load a list of parquet files in parallel."""
+    """
+    Load a list of parquet files in parallel.
+    
+    Raises
+    ------
+    RunTimeError
+        If any partition fails to load.
+    ValueError
+        If Datetime index is missing or not UTC.
+    """
+
     dfs: list[pd.DataFrame] = []
+    errors: list[str]       = []
 
     def _load(file_path: Path) -> pd.DataFrame:
-        return pd.read_parquet(file_path, columns=cols)
+        df = pd.read_parquet(file_path, columns=cols)
+
+        if not isinstance(df.index, pd.DatetimeIndex):
+            raise ValueError(f"Partition {file_path} has no DatetimeIndex.")
+
+        if df.index.tz is None or str(df.index.tz) != "UTC":
+            raise ValueError(
+                f"Partition {file_path} index timezone is "
+                f"{df.index.tz!r}, expected UTC."
+            )
+
+        return df
 
     with ThreadPoolExecutor(max_workers=min(max_workers, len(files))) as pool:
         futures = {pool.submit(_load, fp): fp for fp in files}
@@ -303,8 +366,14 @@ def _load_partitions_parallel(
             try:
                 dfs.append(future.result())
             except Exception as exc:
-                logger.error("Failed to load partition %s: %s", fp, exc)
+                errors.append(f"{fp}: {exc}")
 
+    if errors:
+        raise RuntimeError(
+            f"Failed to load {len(errors)} partition(s):\n"
+            + "\n".join(errors)
+        )
+    
     return dfs
 
 
@@ -337,4 +406,48 @@ def _ensure_utc_datetime_index(df: pd.DataFrame) -> pd.DataFrame:
         f"Cannot convert index of type {type(idx).__name__} to a UTC DatetimeIndex. "
         "Expected a DatetimeIndex or a numeric (Unix millisecond) index."
     )
+
+
+def _validate_partition(df: pd.DataFrame, year: int, month: int) -> None:
+    """
+    Validate a partition before writing to disk.
+
+    Raises
+    ------
+    ValueError
+        If index is not UTC DatetimeIndex, not monotonic, or 
+        contains timestamps outside the expected year/month.
+    """
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError(
+            f"Partition {year}/{month:02d} does not have a DatetimeIndex."
+        )
+
+    if df.index.tz is None:
+        raise ValueError(
+            f"Partition {year}/{month:02d} index is not timezone-aware. "
+            f"Expected UTC."
+        )
+
+    if str(df.index.tz) != "UTC":
+        raise ValueError(
+            f"Partition {year}/{month:02d} index timezone is {df.index.tz}. "
+            f"Expected UTC."
+        )
+
+    if not df.index.is_monotonic_increasing:
+        raise ValueError(
+            f"Partition {year}/{month:02d} index is not sorted ascending. "
+            f"Sort before writing."
+        )
+
+    # Verify all timestamps belong to this partition
+    wrong_months = df[(df.index.year != year) | (df.index.month != month)]
+    if not wrong_months.empty:
+        raise ValueError(
+            f"Partition {year}/{month:02d} contains {len(wrong_months)} rows "
+            f"with timestamps outside this month. "
+            f"Check groupby logic in save_partitioned_parquet."
+        )
+    
 

@@ -1,21 +1,26 @@
+from __future__ import annotations
+
 from abc import ABC
 from typing import Generic, TypeVar
 from dataclasses import dataclass
-from trading.data_utils.enums import PriceType
-
+from trading.data_utils.core.enums import PriceType
 
 
 @dataclass(frozen=True)
 class StrategyConfig:
-    strategy_id:        str
-    signal_price_types: tuple[PriceType, ...] = (PriceType.LAST,)
+    strategy_id:    str
+    price_type:     PriceType = PriceType.MARK
 
 
 @dataclass(frozen=True)
 class DataRequirements:
-    price_types: tuple[PriceType, ...] = (PriceType.LAST,)
+    """
+    Declares what market data a strategy needs.
+    Constructed by data_requirements() and consumed by the runner.
+    """
+    price_type:  PriceType
     columns:     tuple[str, ...] | None = None
-
+    
 
 ConfigT = TypeVar("ConfigT", bound = StrategyConfig)
 
@@ -38,8 +43,20 @@ class StrategyBase(ABC, Generic[ConfigT]):
         return DataRequirements(price_types=self.config.signal_price_types)
 
     def _resolve_column(self, base: str, price_type: PriceType | None = None) -> str:
-        price_types = self.config.signal_price_types
-        pt = price_type or price_types[0]
+        """
+        Resolve a prefixed column name.
+        Always prefixed — no ambiguity regardless of how many price types are loaded.
+
+        Parameters
+        ----------
+        base : str
+            Base column name e.g. 'close', 'volume'
+        price_type : PriceType, optional
+            Which price type prefix to use.
+            Defaults to first declared signal price type.
+        """
+
+        pt = price_type or self.config.signal_price_types[0]
         return f"{pt.value}_{base}"
 
     # ------------------------------------------------------------------
