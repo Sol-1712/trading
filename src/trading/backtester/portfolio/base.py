@@ -157,7 +157,7 @@ class Portfolio:
         )
             
             self._equity -= fee
-            self.remaining_equity -= fee
+            remaining_equity -= fee
             total_fee += fee
             self._position_units += fill.units_filled
 

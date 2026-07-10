@@ -6,7 +6,10 @@ from trading.backtester.engine.config_bases  import ExecutionConfig
 import pandas as pd
 import numpy as np
 from typing import ClassVar
+import logging
+import math
 
+logger = logging.getLogger(__name__)
 
 class PerpDirectionalEngine(ExecutionEngine):
     """
@@ -57,7 +60,7 @@ class PerpDirectionalEngine(ExecutionEngine):
         self,
         target_fraction: float,
         state:           PortfolioSnapshot,
-        bar:             pd.Series,
+        price:           float,
     ) -> None:
         """
         Convert target position to a concrete order and queue for execution.
@@ -77,23 +80,20 @@ class PerpDirectionalEngine(ExecutionEngine):
             Received from position constructor + risk engine.
         state : PortfolioSnapshot
             Current portfolio state. Provides equity and position_fraction.
-        bar : pd.Series
-            Current bar 
+        price : float
+            Execution price
         """
 
         if state.equity <= 0.0:
-            raise RuntimeError(
-                f"Cannot submit order: portfolio ruined at {state.timestamp}. "
-                f"Equity: {state.equity}, Position: {state.position_units}"
+            logger.warning(
+                "Cannot submit order: equity %.2f at %s — skipping.",
+                state.equity, state.timestamp,
             )
+            return
     
-        if not isinstance(target_fraction, (int, float)):
-            raise TypeError(f"target_fraction must be numeric, got {type(target_fraction)}")
-        if abs(target_fraction) > self.config.leverage_max:
-            raise ValueError(f"target_fraction {target_fraction} exceeds {self.config.leverage_max}")
+        if not math.isfinite(target_fraction):
+            raise ValueError(f"Non-finite target_fraction: {target_fraction}")
             
-        price = bar['mark_close'] # mtm price
-
         current_fraction  = (state.position_units * price) / state.equity
         pending_fraction  = self._pending_notional / state.equity
         expected_fraction = current_fraction + pending_fraction
@@ -155,7 +155,7 @@ class PerpDirectionalEngine(ExecutionEngine):
         remaining = []
 
         for order in self._active:
-            fill = self._fill_model.attempt(order, bar)
+            fill = self._fill_model.attempt_fill(order, bar)
 
             if fill is None:
                 # No fill this bar — order stays active

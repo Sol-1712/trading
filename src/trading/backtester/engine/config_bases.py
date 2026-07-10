@@ -36,7 +36,7 @@ class ExecutionConfig:
             raise ValueError(f"delay_bars must be >= 1, got {self.delay_bars}")
         
     @property
-    def execution_price_type(self) -> PriceType:
+    def price_type(self) -> PriceType:
         """Derived from fill model — fill model is the authority on price series."""
         return self.fill_model.price_type
 

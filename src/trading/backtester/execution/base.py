@@ -32,7 +32,7 @@ class ExecutionEngine(ABC):
             raise ValueError("config cannot be None")
             
         self.config = config
-        self._fill_model                = config.fill_model or MarketFillModel(config.execution_price_type)
+        self._fill_model                = config.fill_model or MarketFillModel()
         self._queue:   dict[int, Order] = {}
         self._pending: list[Order]      = []
         self._pending_notional: float   = 0.0

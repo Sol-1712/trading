@@ -51,7 +51,7 @@ class StrategyBase(ABC, Generic[ConfigT]):
         Override if a strategy needs additional columns or 
         more complex requirements.
         """
-        return DataRequirements(price_types=self.config.price_types)
+        return DataRequirements(price_type=self.config.price_type)
 
     def _resolve_column(self, base: str) -> str:
         """

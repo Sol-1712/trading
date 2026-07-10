@@ -49,7 +49,7 @@ class BacktestRunner:
                 config.execution.fee_rate
                 )
         self._engine   = PerpDirectionalEngine(config.execution)
-        self._mtm_col  = f"{config.execution.mtm_price_type.value}_close"
+        self._mtm_col  = f"{config.execution.mtm_price_type.value}_close" 
 
         logger.debug("BacktestRunner initialized with strategy=%s", 
                     type(self.strategy).__name__)
@@ -78,7 +78,7 @@ class BacktestRunner:
         """
 
         # ── Phase 1: Stateless ────────────────────────────────────────
-        logger.info("Starting backtest run: %s", self.config.name)
+        logger.info("Starting backtest run: %s", self.strategy.config.name)
 
         data = self._load_data()
         data = self._compute_features(data)
@@ -124,14 +124,14 @@ class BacktestRunner:
                 self._engine.submit(
                     target_fraction = target, 
                     state = state, 
-                    bar = bar)
+                    price = mark_close)
 
         history = self._portfolio.history()
         logger.info("Backtest complete: %d bars processed, final equity=%.2f",
-                   len(self._data), self._portfolio.equity)
+                   len(data), self._portfolio.equity)
 
         return BacktestResults(
-            data    = self._data,
+            data    = data,
             signals = signals,
             targets = targets,
             portfolio_history = history,
@@ -154,7 +154,7 @@ class BacktestRunner:
 
         signal_type    = self.strategy.data_requirements().price_type
         execution_type = self.config.execution.price_type
-        mtm_type       = self.config.mtm_price_type
+        mtm_type       = self.config.execution.mtm_price_type
         price_types = tuple({signal_type, execution_type, mtm_type})
         
         data = prepare_data(
@@ -316,10 +316,6 @@ class BacktestRunner:
             Signed target size as fraction of equity (e.g., 0.5 = 50% long).
             None means no signal based action.
             
-        Raises
-        ------
-        ValueError
-            If signal produces invalid position (NaN or ±inf).
         """
         if signal is None:
             return None   # hold whatever we have
@@ -327,13 +323,7 @@ class BacktestRunner:
         if signal.direction == SignalDirection.FLAT:
             return 0.0
 
-        if signal.direction == SignalDirection.LONG:
-            return simple_size(signal)       # stub → positive fraction
-
-        if signal.direction == SignalDirection.SHORT:
-            return simple_size(signal)       # stub → negative fraction
-
-        raise ValueError(f"Unhandled signal direction: {signal.direction}")
+        return simple_size(signal) 
 
 
     def _apply_risk(
