@@ -28,7 +28,7 @@ class MarketFillModel(FillModel):
         return self._price_type
 
 
-    def attempt(self, order: Order, bar: pd.Series) -> Fill:
+    def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
 
         if self._open_col not in bar.index:
             raise KeyError(

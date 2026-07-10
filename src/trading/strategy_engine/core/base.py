@@ -1,16 +1,27 @@
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
 from trading.data_utils.core.enums import PriceType
 
 
 @dataclass(frozen=True)
-class StrategyConfig:
-    strategy_id:    str
-    price_type:     PriceType = PriceType.MARK
-
+class StrategyConfig(ABC):
+    price_type: PriceType = field(
+        default=PriceType.MARK,
+        kw_only=True
+    )
+    @property
+    @abstractmethod
+    def config_id(self) -> str:
+        """Return a unique identifier for this configuration."""
+        pass
+    
+    @property
+    def name(self):
+        return self.config_id
 
 @dataclass(frozen=True)
 class DataRequirements:
@@ -40,9 +51,9 @@ class StrategyBase(ABC, Generic[ConfigT]):
         Override if a strategy needs additional columns or 
         more complex requirements.
         """
-        return DataRequirements(price_types=self.config.signal_price_types)
+        return DataRequirements(price_types=self.config.price_types)
 
-    def _resolve_column(self, base: str, price_type: PriceType | None = None) -> str:
+    def _resolve_column(self, base: str) -> str:
         """
         Resolve a prefixed column name.
         Always prefixed — no ambiguity regardless of how many price types are loaded.
@@ -51,13 +62,9 @@ class StrategyBase(ABC, Generic[ConfigT]):
         ----------
         base : str
             Base column name e.g. 'close', 'volume'
-        price_type : PriceType, optional
-            Which price type prefix to use.
-            Defaults to first declared signal price type.
         """
 
-        pt = price_type or self.config.signal_price_types[0]
-        return f"{pt.value}_{base}"
+        return f"{self.config.price_type.value}_{base}"
 
     # ------------------------------------------------------------------
     # Lifecycle hooks — optional

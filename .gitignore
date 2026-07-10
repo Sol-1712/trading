@@ -35,4 +35,4 @@ data/
 *.h5
 
 # Logs
-logs/
+runs/

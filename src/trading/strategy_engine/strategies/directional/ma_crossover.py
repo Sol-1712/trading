@@ -14,24 +14,24 @@ class MACrossoverConfig(StrategyConfig):
 
     Inherits
     --------
-    strategy_id        : str
-    signal_price_types : tuple[PriceType, ...]
+    signal_price_type : PriceType
+        Defaults to PriceType.Mark Used for signal generation
 
     Parameters
     ----------
     fast_period : int
         Lookback period for the fast MA.
     fast_type : MAType
-        MA type for the fast line (SMA or EMA).
+        MA type for the fast line.
     slow_period : int
         Lookback period for the slow MA.
     slow_type : MAType
-        MA type for the slow line (SMA or EMA).
+        MA type for the slow line.
     """
-    fast_period: int    = 20
-    fast_type:   MAType = MAType.EMA
-    slow_period: int    = 50
-    slow_type:   MAType = MAType.SMA
+    fast_period: int    
+    fast_type:   MAType 
+    slow_period: int    
+    slow_type:   MAType
 
     def __post_init__(self) -> None:
         if self.fast_period <= 0:
@@ -43,6 +43,13 @@ class MACrossoverConfig(StrategyConfig):
                 f"fast_period ({self.fast_period}) must be "
                 f"< slow_period ({self.slow_period})"
             )
+
+    @property
+    def config_id(self) -> str:
+        return (
+            f"MA_CROSS_{self.fast_type.value}_{self.fast_period}_"
+            f"{self.slow_type.value}_{self.slow_period}"
+        )
 
 
 class MACrossover(DirectionalStrategy[MACrossoverConfig]):

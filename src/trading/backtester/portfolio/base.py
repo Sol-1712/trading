@@ -3,9 +3,9 @@ from __future__ import annotations
 import dataclasses
 import logging
 from typing import ClassVar, cast
-
 import numpy as np
 import pandas as pd
+import math
 
 from trading.backtester.portfolio.snapshot import PortfolioSnapshot
 from trading.backtester.fill import Fill
@@ -80,14 +80,16 @@ class Portfolio:
 
     def step(
         self,
+        timestamp:       pd.Timestamp,
         fills:           list[Fill],
-        bar:             pd.Series
+        mtm_price:       float,
+        funding_rate:    float
     ) -> PortfolioSnapshot:
         """
         Advance portfolio by one bar.
         
         ORDER OF OPERATIONS:
-        1. MTM existing position using mark_close (day's close price)
+        1. MTM existing position using mark_close (bar's close price)
         2. Apply funding based on position held at start of bar
         3. Execute fills at execution prices (from fill model)
         4. Record snapshot at mark_close (for position fraction calc)
@@ -103,10 +105,14 @@ class Portfolio:
 
         Parameters
         ----------
+        timestamp : pd.Timestamp
+            Timestamp of the current bar.
         fills : list[Fill]
             Fills from execute_pending. Empty list if no fills this bar.
-        bar: pd.Series
-            Current bar.
+        mtm_price : float
+            Mark-to-market price for the current bar.
+        funding_rate : float
+            Funding rate for the current bar. Positive means long pays short.
 
         Returns
         -------
@@ -114,24 +120,13 @@ class Portfolio:
             Immutable record of state after this bar.
         """
 
-        mtm_price = bar['mark_close']
-
-
-        funding_rate = bar['funding_rate']
-
-        required_fields = ['mark_close', 'funding_rate']
-        for field in required_fields:
-            if field not in bar.index:
-                raise KeyError(f"Missing field: {field}")
             
+        # ── Validate inputs ──────────────────────────────────────────────
         if not (0 < mtm_price < 1e10):
-            raise ValueError(f"Invalid mtm_price {mtm_price} at {bar.name}")
-        if not (-1.0 < funding_rate < 1.0):
-            raise ValueError(f"Invalid funding_rate {funding_rate}")
-
-              
-        timestamp = cast(pd.Timestamp, bar.name).to_pydatetime()
-
+            raise ValueError(f"Invalid mtm_price {mtm_price} at {timestamp}")
+        if not math.isfinite(funding_rate):
+            raise ValueError(f"Non-finite funding_rate {funding_rate} at {timestamp}")
+    
         prev_price = self._last_price if self._last_price is not None else mtm_price
 
         # ── 1. MTM existing position ─────────────────────────────────────
@@ -142,42 +137,45 @@ class Portfolio:
         # ── 2. Funding settlement ────────────────────────────────────────
         # Applied on position held at start of bar, at prev bar's close price.
         # Negative funding_pnl = equity decreases -> I paid.
+
         funding_pnl   = -(self._position_units * prev_price * funding_rate)
         self._equity += funding_pnl
 
         # ── 3. Execute fills ─────────────────────────────────────────────
-        starting_equity = self._equity
+        remaining_equity = self._equity
 
         total_fee = 0.0
         for fill in fills:
-            # Validate fill
-            if not (0 < fill.fill_price < 1e10):
-                raise ValueError(f"Invalid fill_price: {fill.fill_price}")
-            
-            # Calculate and validate fee
             fee = abs(fill.units_filled) * fill.fill_price * self._fee_rate
-            if fee < 0:
-                raise ValueError(f"Negative fee: {fee}")
-            if fee > starting_equity:
-                raise ValueError(f"Fee {fee} exceeds equity {starting_equity}")
+            if not (0 < fill.fill_price < 1e10):
+                raise ValueError(f"Invalid fill_price {fill.fill_price} at {timestamp}")
+            
+            if fee > remaining_equity:
+                logger.warning(
+                    "Fee %.2f exceeds remaining equity %.2f at %s — ruin.",
+                    fee, remaining_equity, timestamp,
+        )
             
             self._equity -= fee
+            self.remaining_equity -= fee
             total_fee += fee
             self._position_units += fill.units_filled
 
-        # Verify state
-        if self._position_units != self._position_units:  # NaN check
-            raise RuntimeError("Position became NaN")
+        # ── 4.Verify state ────────────────────────────────────
+        if math.isnan(self._position_units) or math.isnan(self._equity):
+            raise RuntimeError(
+                f"Portfolio state became NaN at {timestamp}. "
+                f"position_units={self._position_units}, equity={self._equity}"
+    )
 
-        # ── 4. Update price reference ────────────────────────────────────
+        # ── 5. Update price reference ────────────────────────────────────
         self._last_price = mtm_price
 
-        # ── 5. Derived values ────────────────────────────────────────────
-        if self._equity > 0:
-            position_fraction = (self._position_units * mtm_price) / self._equity
-        else:
-            position_fraction = 0.0
-
+        # ── 6. Derived values ────────────────────────────────────────────
+        position_fraction = (
+            (self._position_units * mtm_price) / self._equity
+            if self._equity > 0 else 0.0
+        )
         snapshot = PortfolioSnapshot(
             timestamp         = timestamp,
             price             = mtm_price,

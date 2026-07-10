@@ -151,8 +151,8 @@ class BybitFetcher:
             (plus ``volume, turnover`` for ``"last"``). All float64.
         """
         schema = KLINE_SCHEMAS[price_type]
-        raw_cols: list[str] = schema["raw_cols"]
-        numeric_cols: list[str] = schema["numeric_cols"]
+        raw_cols = schema.raw_cols
+        numeric_cols = list(schema.numeric_cols)
         api_method = self._get_kline_api_method(price_type)
         end = self._resolve_end(end)
         symbol = symbol.upper()

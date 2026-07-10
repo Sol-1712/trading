@@ -2,16 +2,16 @@ import numpy as np
 import pandas as pd
 import logging
 
+
 from trading.data_utils.prepare                      import prepare_data
-from trading.backtester.engine.config_bases                import BacktestConfig
+from trading.backtester.engine.config_bases          import BacktestConfig
 from trading.backtester.execution                    import PerpDirectionalEngine
-from trading.strategy_engine.core                    import StrategyBase, DataRequirements
 from trading.strategy_engine.strategies.directional  import DirectionalStrategy
 from trading.strategy_engine.features                import FeatureRegistry
-from trading.strategy_engine.core                    import Signal
+from trading.strategy_engine.core                    import Signal, SignalDirection, StrategyBase
 from trading.backtester.metrics.results              import BacktestResults
 from trading.backtester.risk.temp_sizer              import simple_size
-from trading.backtester.portfolio                    import Portfolio
+from trading.backtester.portfolio                    import Portfolio, PortfolioSnapshot
 
 
 logger = logging.getLogger(__name__)
@@ -39,24 +39,103 @@ class BacktestRunner:
     """
 
     def __init__(self, config: BacktestConfig, strategy: StrategyBase):
-        if config is None:
-            raise ValueError("config cannot be None")
-        if strategy is None:
-            raise ValueError("strategy cannot be None")
             
         self.config           = config
         self.strategy         = strategy
 
-        self._data:           pd.DataFrame
-
         self._registry        = FeatureRegistry()
         self._portfolio       = Portfolio(
                 config.initial_capital, 
-                self.config.execution.fee_rate
+                config.execution.fee_rate
                 )
-        self._engine          = PerpDirectionalEngine(self.config.execution)
+        self._engine   = PerpDirectionalEngine(config.execution)
+        self._mtm_col  = f"{config.execution.mtm_price_type.value}_close"
+
         logger.debug("BacktestRunner initialized with strategy=%s", 
                     type(self.strategy).__name__)
+
+
+    def run(self) -> BacktestResults:
+        """
+        Execute full backtest: data load → feature computation → signal generation
+        → bar-by-bar execution simulation.
+        
+        PHASE 1 (Stateless): Load data, compute features, generate signals.
+        PHASE 2 (Stateful): Loop through bars, execute orders, track portfolio state.
+        
+        Returns
+        -------
+        BacktestResults
+            Complete backtest output including price data, signals, targets, and
+            portfolio history (equity, positions, PnL components by bar).
+            
+        Raises
+        ------
+        ValueError
+            If validation fails (empty data, signal/data mismatch, lookahead).
+        RuntimeError
+            If portfolio or engine enters invalid state during execution.
+        """
+
+        # ── Phase 1: Stateless ────────────────────────────────────────
+        logger.info("Starting backtest run: %s", self.config.name)
+
+        data = self._load_data()
+        data = self._compute_features(data)
+
+        signals = self._generate_signals(data)
+        self._validate_signals(signals, data)
+
+        logger.info(
+            "Phase 1 complete — %d bars, %d signals.",
+            len(data),
+            sum(1 for s in signals if s is not None),
+        )
+    
+        
+        # ── Phase 2: Stateful ─────────────────────────────────────────
+        targets:  list[float | None] = []
+        index     = data.index
+        n         = len(data)
+
+        for t in range(n):
+            
+            bar          = data.iloc[t]
+            mark_close   = float(bar[self._mtm_col])
+            funding_rate = float(bar.get("funding_rate", 0.0))
+
+            # Attempt fills on pending orders
+            fills = self._engine.execute_pending(bar, t)
+
+            # Update portfolio
+            state = self._portfolio.step(
+                timestamp = index[t],
+                fills     =  fills,
+                mtm_price = mark_close,
+                funding_rate = funding_rate)
+
+            # Signal -> Target -> Risk
+            signal = signals[t] 
+            target = self._size_pos(signal)
+            target = self._apply_risk(target, state)
+            targets.append(target)
+
+            if target is not None:
+                self._engine.submit(
+                    target_fraction = target, 
+                    state = state, 
+                    bar = bar)
+
+        history = self._portfolio.history()
+        logger.info("Backtest complete: %d bars processed, final equity=%.2f",
+                   len(self._data), self._portfolio.equity)
+
+        return BacktestResults(
+            data    = self._data,
+            signals = signals,
+            targets = targets,
+            portfolio_history = history,
+        )
 
 
     def _load_data(self) -> pd.DataFrame:
@@ -71,25 +150,19 @@ class BacktestRunner:
         pd.DataFrame
             Market data indexed by timestamp with requested columns.
             
-        Raises
-        ------
-        ValueError
-            If returned data is empty or has zero rows.
         """
 
-        signal_type = self.strategy.data_requirements().price_type
+        signal_type    = self.strategy.data_requirements().price_type
         execution_type = self.config.execution.price_type
-        price_types = tuple({signal_type, execution_type})
+        mtm_type       = self.config.mtm_price_type
+        price_types = tuple({signal_type, execution_type, mtm_type})
         
         data = prepare_data(
             config      = self.config.data,
             price_types = price_types,
             columns     = self.strategy.data_requirements().columns,
         )
-        
-        if data is None or data.empty:
-            raise ValueError("Data loader returned empty DataFrame")
-        
+                
         logger.info("Loaded %d bars from %s to %s", 
                    len(data), data.index[0], data.index[-1])
         return data
@@ -116,11 +189,8 @@ class BacktestRunner:
         ------
         NotImplementedError
             If strategy type is not DirectionalStrategy.
-        ValueError
-            If data is None or empty.
         """
-        if data is None or data.empty:
-            raise ValueError("Cannot compute features on empty data")
+
             
         if not isinstance(self.strategy, DirectionalStrategy):
             raise NotImplementedError(
@@ -243,23 +313,33 @@ class BacktestRunner:
         Returns
         -------
         float | None
-            Signed target position as fraction of equity (e.g., 0.5 = 50% long).
-            None means no action (keep current position).
+            Signed target size as fraction of equity (e.g., 0.5 = 50% long).
+            None means no signal based action.
             
         Raises
         ------
         ValueError
             If signal produces invalid position (NaN or ±inf).
         """
-        result = simple_size(signal)
-        
-        if result is not None and (np.isnan(result) or np.isinf(result)):
-            raise ValueError(f"Position sizer returned invalid position: {result}")
-        
-        return result
+        if signal is None:
+            return None   # hold whatever we have
+
+        if signal.direction == SignalDirection.FLAT:
+            return 0.0
+
+        if signal.direction == SignalDirection.LONG:
+            return simple_size(signal)       # stub → positive fraction
+
+        if signal.direction == SignalDirection.SHORT:
+            return simple_size(signal)       # stub → negative fraction
+
+        raise ValueError(f"Unhandled signal direction: {signal.direction}")
 
 
-    def _apply_risk(self, target: float) -> float | None:
+    def _apply_risk(
+            self, 
+            target: float | None,
+            state: PortfolioSnapshot) -> float | None:
         """
         Apply risk adjustments to target position.
         
@@ -281,63 +361,4 @@ class BacktestRunner:
     
     
 
-    def run_NEW(self) -> BacktestResults:
-        """
-        Execute full backtest: data load → feature computation → signal generation
-        → bar-by-bar execution simulation.
-        
-        PHASE 1 (Stateless): Load data, compute features, generate signals.
-        PHASE 2 (Stateful): Loop through bars, execute orders, track portfolio state.
-        
-        Returns
-        -------
-        BacktestResults
-            Complete backtest output including price data, signals, targets, and
-            portfolio history (equity, positions, PnL components by bar).
-            
-        Raises
-        ------
-        ValueError
-            If validation fails (empty data, signal/data mismatch, lookahead).
-        RuntimeError
-            If portfolio or engine enters invalid state during execution.
-        """
-        # PHASE 1: Stateless
-        logger.info("Starting backtest run")
-        self._data = self._load_data()
-        self._data = self._compute_features(self._data)
 
-        signals = self._generate_signals(self._data)
-        self._validate_signals(signals, self._data)
-
-        targets = []
-        logger.info("Phase 1 complete: data and signals ready, entering execution loop")
-    
-        # PHASE 2: Stateful
-        for t in range(len(self._data)):
-            
-            bar = self._data.iloc[t]
-
-            fills = self._engine.execute_pending(bar, t)
-
-            state = self._portfolio.step(fills, bar)
-
-            signal = signals[t] 
-            target = self._size_pos(signal)
-            targets.append(target)
-
-            if target is None:
-                continue
-
-            self._engine.submit(target, state, bar)
-
-        history = self._portfolio.history()
-        logger.info("Backtest complete: %d bars processed, final equity=%.2f",
-                   len(self._data), self._portfolio.equity)
-
-        return BacktestResults(
-            data    = self._data,
-            signals = signals,
-            targets = targets,
-            portfolio_history = history,
-        )

@@ -24,9 +24,10 @@ class RunConfig:
 @dataclass(frozen=True)
 class ExecutionConfig:
     """Execution simulation parameters only. No risk constraints."""
-    fee_rate:   float
-    delay_bars: int       = 1
-    fill_model: FillModel = field(default_factory= MarketFillModel, hash=False, compare=False)
+    fee_rate:       float
+    delay_bars:     int       = 1
+    fill_model:     FillModel = field(default_factory= MarketFillModel, hash=False, compare=False)
+    mtm_price_type: PriceType = PriceType.MARK
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.fee_rate <= 0.01:

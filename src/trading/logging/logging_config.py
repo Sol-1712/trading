@@ -9,9 +9,7 @@ PROJECT_ROOT_LOGGER = "trading"
 def setup_logging(
     console_level: int = logging.INFO,
     file_level: int = logging.DEBUG,
-    log_dir: Optional[Path] = None,
-    run_id: Optional[str] = None,
-    overwrite: bool = False
+    run_dir: Optional[Path] = None,
 ) -> None:
     """
     Configure logging for the entire platform.
@@ -20,19 +18,11 @@ def setup_logging(
     Params
     ------
     console_level : what severity to show in the terminal
-    file_level    : what severity to write to disk (usually more verbose)
-    log_dir       : if provided, also write logs to this directory
-    run_id        : appended to the log filename for traceability
+    file_level    : what severity to write to disk
+    run_dir       : if provided, also write logs to this directory
     """
     root = logging.getLogger(PROJECT_ROOT_LOGGER)
 
-    log_path = log_dir / f"run_{run_id}.log"
-    if log_path.exists() and not overwrite:
-        raise FileExistsError(
-            f"Log file already exists for run_id '{run_id}'. "
-            f"Pass overwrite=True or use a unique run_id."
-        )
-    
     if root.handlers:
         # Guard against double-initialisation (e.g. in notebooks)
         return
@@ -43,8 +33,21 @@ def setup_logging(
 
     root.addHandler(_console_handler(console_level, formatter))
 
-    if log_dir is not None:
-        root.addHandler(_file_handler(log_dir, file_level, formatter, run_id))
+    if run_dir is not None:
+        log_path = run_dir / "run.log"
+
+        if log_path.exists():
+            raise FileExistsError(
+                f"Log file already exists: {log_path}"
+            )
+
+        root.addHandler(
+            _file_handler(
+                log_path,
+                file_level,
+                formatter,
+            )
+        )
 
 
 def _build_formatter() -> logging.Formatter:
@@ -62,14 +65,10 @@ def _console_handler(level: int, formatter: logging.Formatter) -> logging.Handle
 
 
 def _file_handler(
-    log_dir: Path,
+    log_path: Path,
     level: int,
     formatter: logging.Formatter,
-    run_id: Optional[str],
 ) -> logging.Handler:
-    log_dir.mkdir(parents=True, exist_ok=True)
-    suffix = f"_{run_id}" if run_id else ""
-    log_path = log_dir / f"run{suffix}.log"
 
     # RotatingFileHandler prevents logs from growing unbounded
     handler = logging.handlers.RotatingFileHandler(
@@ -77,4 +76,5 @@ def _file_handler(
     )
     handler.setLevel(level)
     handler.setFormatter(formatter)
+    
     return handler

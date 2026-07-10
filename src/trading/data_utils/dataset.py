@@ -104,21 +104,34 @@ def update_funding(
     start:   int,
     end:     int | None = None,
 ) -> None:
+    
     funding_path = make_data_path(symbol, data_type=DataType.FUNDING)
     stored       = get_stored_range(funding_path)
 
-    if stored is not None:
-        stored_start_ms = int(stored[0].timestamp() * 1000)
-        stored_end_ms   = int(stored[1].timestamp() * 1000)
-        funding_interval_ms = 8 * 60 * 60 * 1000  # 8 hours in ms
+    if stored is None:
+        # No data — fetch full range from start
+        pass
 
-        if start >= stored_start_ms and (end is None or end <= stored_end_ms):
+    else:
+        stored_start_ms     = int(stored[0].timestamp() * 1000)
+        stored_end_ms       = int(stored[1].timestamp() * 1000)
+        funding_interval_ms = 8 * 60 * 60 * 1000
+        server_time_ms      = fetcher._server_time_ms()
+
+        if start < stored_start_ms:
+            # Backfill case — fetch from requested start up to stored start
+            end   = stored_start_ms - funding_interval_ms
+            logger.info("%s funding — backfilling from %d to %d.", symbol, start, end)
+
+        elif stored_end_ms >= server_time_ms - funding_interval_ms:
+            # Forward case — already up to date
             logger.info("%s funding — already up to date, skipping.", symbol)
             return
 
-        if start >= stored_start_ms:
-            # Forward fill only
+        else:
+            # Forward case — fetch from stored end onwards
             start = stored_end_ms + funding_interval_ms
+            logger.info("%s funding — forward filling from %d.", symbol, start)
 
     logger.info("Updating funding for %s from %d.", symbol, start)
 

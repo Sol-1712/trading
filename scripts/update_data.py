@@ -55,7 +55,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Update market data.")
     parser.add_argument(
         "--config",
-        default = "config/data_update.yaml",
+        default = "default_update.yaml",
         help    = "Path to update config YAML.",
     )
     args = parser.parse_args()

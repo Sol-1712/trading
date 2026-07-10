@@ -1,4 +1,3 @@
-import logging
 from datetime import datetime
 from pathlib import Path
 import yaml
@@ -10,13 +9,13 @@ from trading.backtester.risk import RiskConfig
 from trading.data_utils.core.enums import PriceType
 from trading.data_utils.core.paths import CONFIGS_ROOT
 
-logger = logging.getLogger(__name__)
+
 
 _DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d"]
 
 
 def load_config(
-    file:      str | Path     = "default_update.yaml",
+    file:      str | Path     = "default_backtest.yaml",
     overrides: dict[str, Any] | None = None,
 ) -> BacktestConfig:
     """
@@ -45,7 +44,7 @@ def load_config(
         If YAML is malformed or required fields are missing.
     """
 
-    path = CONFIGS_ROOT / 'backtest' / file if isinstance(file, str) else file
+    path = CONFIGS_ROOT / 'backtests' / file if isinstance(file, str) else file
 
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
@@ -70,7 +69,6 @@ def load_config(
     except KeyError as e:
         raise ValueError(f"Missing required config field: {e}") from e
     except (ValueError, TypeError) as e:
-        logger.error("Config parsing failed: %s", e)
         raise
 
 
@@ -143,7 +141,7 @@ def _build_execution_config(raw: dict) -> ExecutionConfig:
     return ExecutionConfig(
         fee_rate             = float(raw["fee_rate"]),
         delay_bars           = int(raw.get("delay_bars", 1)),
-        execution_price_type = PriceType(raw.get("execution_price_type", 'last'))
+        mtm_price_type       = PriceType(raw.get("mtm_price_type", 'mark'))
     )
 
 
