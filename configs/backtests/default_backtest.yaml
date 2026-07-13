@@ -23,12 +23,3 @@ risk:
 
 initial_capital: 100000
 
-
-
-# Replace fill model after loading if required:
-  # custom_execution = ExecutionConfig(
-  #     fee_rate       = config.execution.fee_rate,
-  #     delay_bars     = config.execution.delay_bars,
-  #     mtm_price_type = config.execution.mtm_price_type,
-  #     fill_model     = MyCustomFillModel(PriceType.MARK),
-  # )

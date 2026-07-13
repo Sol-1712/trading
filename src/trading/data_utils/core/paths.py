@@ -90,6 +90,8 @@ def make_data_path(
     if data_type == DataType.KLINES:
         _validate_klines_args(interval, price_type)
         assert price_type is not None  # for type checker
+        print(price_type)
+        print(type(price_type))
         path = base / "klines" / f"{interval}m" / price_type 
 
     elif data_type == DataType.FUNDING:

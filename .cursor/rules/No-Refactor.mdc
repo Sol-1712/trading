@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+Do not automatically refactor large sections of the codebase. I prefer to implement changes incrementally after discussing the design.

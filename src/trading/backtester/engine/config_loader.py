@@ -8,7 +8,7 @@ from trading.data_utils.core.config import DataConfig
 from trading.backtester.risk import RiskConfig
 from trading.data_utils.core.enums import PriceType
 from trading.data_utils.core.paths import CONFIGS_ROOT
-
+from trading.backtester.fill import FillModel, FILL_MODELS
 
 
 _DATE_FORMATS = ["%d/%m/%Y", "%Y-%m-%d"]
@@ -141,8 +141,10 @@ def _build_execution_config(raw: dict) -> ExecutionConfig:
     return ExecutionConfig(
         fee_rate             = float(raw["fee_rate"]),
         delay_bars           = int(raw.get("delay_bars", 1)),
+        fill_model_cls       = _get_fill_model(raw.get("fill_model", "market")), 
         mtm_price_type       = PriceType(raw.get("mtm_price_type", 'mark'))
     )
+    
 
 
 def _build_risk_config(raw: dict)-> RiskConfig:
@@ -232,6 +234,11 @@ def _apply_overrides(raw: dict, overrides: dict[str, Any]) -> dict:
     return result
 
 
-
-
-
+def _get_fill_model(name: str) -> type[FillModel]:
+    try:
+        return FILL_MODELS[name]
+    except KeyError:
+        raise ValueError(
+            f"Unknown fill model '{name}'. "
+            f"Available: {list(FILL_MODELS)}"
+        )

@@ -5,7 +5,7 @@ import pandas as pd
 
 from trading.backtester.engine.config_bases import ExecutionConfig
 from trading.backtester.portfolio.base import PortfolioSnapshot
-from trading.backtester.fill import Order, Fill, MarketFillModel
+from trading.backtester.fill import Order, Fill
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,10 @@ class ExecutionEngine(ABC):
     """
 
     def __init__(self, config: ExecutionConfig) -> None:
-        if config is None:
-            raise ValueError("config cannot be None")
-            
-        self.config = config
-        self._fill_model                = config.fill_model or MarketFillModel()
+
+
+        self.config                     = config
+        self._fill_model                = config.fill_model_cls()
         self._queue:   dict[int, Order] = {}
         self._pending: list[Order]      = []
         self._pending_notional: float   = 0.0
@@ -41,6 +40,9 @@ class ExecutionEngine(ABC):
         
         logger.debug("ExecutionEngine initialized with config: %s", type(config).__name__)
 
+    @property
+    def price_type(self):
+        return self._fill_model.price_type
 
     @abstractmethod
     def submit(self, 

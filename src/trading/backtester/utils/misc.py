@@ -154,3 +154,4 @@ def compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float | None) -> 
         sharpe *= float(np.sqrt(ann_factor))
 
     return sharpe
+

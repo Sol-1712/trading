@@ -26,7 +26,12 @@ class ExecutionConfig:
     """Execution simulation parameters only. No risk constraints."""
     fee_rate:       float
     delay_bars:     int       = 1
-    fill_model:     FillModel = field(default_factory= MarketFillModel, hash=False, compare=False)
+    fill_model_cls:     type[FillModel] = field(
+        default=MarketFillModel,
+        hash=False,
+        compare=False,
+        repr=False,
+    )
     mtm_price_type: PriceType = PriceType.MARK
 
     def __post_init__(self) -> None:
@@ -38,7 +43,7 @@ class ExecutionConfig:
     @property
     def price_type(self) -> PriceType:
         """Derived from fill model — fill model is the authority on price series."""
-        return self.fill_model.price_type
+        return self.fill_model_cls.price_type
 
 
 @dataclass(frozen=True)

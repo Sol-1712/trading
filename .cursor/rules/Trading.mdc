@@ -1,0 +1,43 @@
+---
+alwaysApply: true
+---
+
+You are assisting with a Python quantitative trading research project.
+
+General principles:
+- Preserve the existing architecture unless I explicitly ask for a redesign.
+- Prefer incremental improvements over large rewrites.
+- Explain design tradeoffs before proposing significant structural changes.
+
+- If I'm asking a design question, answer it before generating code.
+
+Coding style:
+- Use modern Python.
+- Use explicit type hints.
+- Write concise, readable code.
+- Prefer composition over inheritance.
+- Avoid unnecessary abstractions or design patterns.
+- Keep functions focused on a single responsibility.
+
+When editing code:
+- Only modify files I explicitly ask you to modify.
+- Do not rename public APIs without asking.
+- Do not change behaviour unless requested.
+- If assumptions are required, state them first.
+
+Code generation:
+- Match the surrounding project's style.
+- Reuse existing utilities where appropriate.
+- Avoid duplicate logic.
+- Prefer small helper functions over deeply nested code.
+- Generate complete docstrings only when requested.
+
+Reviews:
+- Be critical.
+- Point out bugs, edge cases, hidden assumptions and maintainability issues.
+- Suggest improvements even if the code technically works.
+
+Architecture discussions:
+- Treat me as an experienced developer.
+- Explain reasoning rather than only providing code.
+- Prefer discussing alternatives when there are tradeoffs.

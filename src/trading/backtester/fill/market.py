@@ -17,16 +17,10 @@ class MarketFillModel(FillModel):
     - No slippage beyond what open price reflects
 
     """
+    price_type = PriceType.LAST
 
-    def __init__(self, price_type: PriceType = PriceType.LAST) -> None:
-        self._price_type = price_type
-        self._open_col   = f"{price_type.value}_open"
-
-
-    @property
-    def price_type(self) -> PriceType:
-        return self._price_type
-
+    def __init__(self) -> None:
+        self._open_col   = f"{self.price_type.value}_open"
 
     def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
 

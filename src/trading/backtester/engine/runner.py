@@ -155,7 +155,7 @@ class BacktestRunner:
         signal_type    = self.strategy.data_requirements().price_type
         execution_type = self.config.execution.price_type
         mtm_type       = self.config.execution.mtm_price_type
-        price_types = tuple({signal_type, execution_type, mtm_type})
+        price_types    = tuple({signal_type, execution_type, mtm_type})
         
         data = prepare_data(
             config      = self.config.data,
