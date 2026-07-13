@@ -2,7 +2,7 @@ import logging
 import numpy as np
 from functools import cached_property
 from scipy.stats import skew, kurtosis
-from trading.backtester.utils import compute_sharpe
+from .utils import compute_sharpe
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +191,7 @@ class ReturnMetrics:
         """
         if np.isnan(self.sharpe):
             return np.nan
-        return self.sharpe * self.core.ann_sqrt
+        return self.sharpe
     
 
     @property

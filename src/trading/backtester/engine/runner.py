@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import logging
 
@@ -9,7 +8,7 @@ from trading.backtester.execution                    import PerpDirectionalEngin
 from trading.strategy_engine.strategies.directional  import DirectionalStrategy
 from trading.strategy_engine.features                import FeatureRegistry
 from trading.strategy_engine.core                    import Signal, SignalDirection, StrategyBase
-from trading.backtester.metrics.results              import BacktestResults
+from trading.backtester.performance                  import BacktestResults
 from trading.backtester.risk.temp_sizer              import simple_size
 from trading.backtester.portfolio                    import Portfolio, PortfolioSnapshot
 
@@ -131,7 +130,6 @@ class BacktestRunner:
                    len(data), self._portfolio.equity)
 
         return BacktestResults(
-            data    = data,
             signals = signals,
             targets = targets,
             portfolio_history = history,

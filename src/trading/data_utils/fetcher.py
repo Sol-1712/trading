@@ -13,7 +13,6 @@ Design principles:
 from __future__ import annotations
 
 import logging
-import time
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from typing import Callable
 import pandas as pd

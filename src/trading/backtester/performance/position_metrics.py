@@ -1,7 +1,7 @@
 import logging
 import numpy as np
 from functools import cached_property
-from trading.backtester.utils import compute_sharpe
+from .utils import compute_sharpe
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ class PositionMetrics:
     @cached_property
     def long_mask(self) -> np.ndarray:
         """Boolean mask where position > 0."""
+        
         return self.core.held_pos > 0
 
 

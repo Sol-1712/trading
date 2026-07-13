@@ -1,17 +1,14 @@
 import os
-API_KEY = os.getenv('BYBIT_API_KEY')
-API_SECRET = os.getenv('BYBIT_API_SECRET')
-
 import argparse
 from pybit.unified_trading import HTTP
-import pandas as pd
 import logging
 
 from trading.data_utils.core import BYBIT_VALID_INTERVALS
 from trading.data_utils.fetcher import BybitFetcher
 from trading.data_utils.dataset import update_klines, update_funding, load_update_config
 
-
+API_KEY = os.getenv('BYBIT_API_KEY')
+API_SECRET = os.getenv('BYBIT_API_SECRET')
 logger = logging.getLogger(__name__)
 
 

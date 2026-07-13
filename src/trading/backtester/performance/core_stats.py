@@ -3,19 +3,18 @@ import pandas as pd
 import numpy as np
 from functools import cached_property
 from typing import cast
-from trading.backtester.utils import infer_ann_factor, safe_divide
+from .utils import infer_ann_factor, safe_divide
+
 
 logger = logging.getLogger(__name__)
 
-# Potentially pass an asset config file to set things like rf, mar, etc
-# Or use the dataframe appendix thing
 class CoreStats:
     """
     Computes core performance statistics from a PnL DataFrame.
     
     Extracts equity, returns, positions, and PnL components. Infers time
     frequency and annualization factor from index. Provides cached properties
-    for return components (position, fee, funding returns).
+    for return components (position, fees, funding returns).
     
     Parameters
     ----------
@@ -25,7 +24,7 @@ class CoreStats:
         - position_units: signed position held
         - bar_pnl: MTM PnL from price movement
         - funding_pnl: funding payments
-        - fee: fees paid
+        - fees: fees paid
         - trade_occurred: bool flag if position changed
         Index must be datetime.
         
@@ -39,7 +38,7 @@ class CoreStats:
         if pnl_df is None or pnl_df.empty:
             raise ValueError("pnl_df cannot be None or empty")
 
-        required_cols = ['equity', 'position_units', 'bar_pnl', 'funding_pnl', 'fee']
+        required_cols = ['equity', 'position_units', 'bar_pnl', 'funding_pnl', 'fees']
         missing = [c for c in required_cols if c not in pnl_df.columns]
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
@@ -69,7 +68,7 @@ class CoreStats:
         self.position_pnl = df["bar_pnl"].to_numpy()
 
         self.funding_pnl = df["funding_pnl"].to_numpy()
-        self.fee_pnl = df["fee"].to_numpy()
+        self.fee_pnl = df["fees"].to_numpy()
 
         # Basic stats
         self.log_returns = np.log1p(self.returns)

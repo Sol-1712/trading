@@ -4,7 +4,7 @@ from .return_metrics import ReturnMetrics
 from .risk_metrics import RiskMetrics
 from .cost_metrics import CostMetrics
 from .position_metrics import PositionMetrics
-from .display import display_report
+from .results import BacktestResults
  
 __all__ = [
     "PerformanceReport",
@@ -13,5 +13,5 @@ __all__ = [
     "RiskMetrics",
     "CostMetrics",
     "PositionMetrics",
-    "display_report",
+    "BacktestResults",
 ]

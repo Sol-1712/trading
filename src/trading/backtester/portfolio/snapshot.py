@@ -19,7 +19,7 @@ class PortfolioSnapshot:
         Bar timestamp (index key in the history DataFrame).
     price : float
         Execution price used for this bar (already delay-adjusted by the engine).
-    target_fraction : float
+    position_fraction : float
         Target position as a signed fraction of equity passed in this step.
         +1.0 = fully long, -1.0 = fully short, 0.0 = flat.
     position_units : float
@@ -29,7 +29,13 @@ class PortfolioSnapshot:
     bar_pnl : float
         Mark-to-market PnL earned by the *previous* position over this bar's
         price move. Realised before any rebalancing occurs.
-    fee : float
+    funding_pnl : float
+
+    net_pnl : float
+
+    leverage: float
+    
+    fees : float
         Fee paid this bar, charged on the notional of any position change.
     trade_occurred : bool
         True if the position changed (|delta_units| > numerical tolerance).

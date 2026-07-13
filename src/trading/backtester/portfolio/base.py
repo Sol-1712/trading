@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import ClassVar, cast
+from typing import ClassVar
 import numpy as np
 import pandas as pd
 import math
@@ -184,7 +184,7 @@ class Portfolio:
             equity            = self._equity,
             bar_pnl           = bar_pnl,
             funding_pnl       = funding_pnl,
-            fees               = total_fee,
+            fees              = total_fee,
             net_pnl           = bar_pnl + funding_pnl - total_fee,
             leverage          = abs(position_fraction),
             trade_occurred    = len(fills) > 0,

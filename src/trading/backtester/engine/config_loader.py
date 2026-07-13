@@ -68,7 +68,7 @@ def load_config(
         )
     except KeyError as e:
         raise ValueError(f"Missing required config field: {e}") from e
-    except (ValueError, TypeError) as e:
+    except (ValueError, TypeError):
         raise
 
 

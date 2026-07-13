@@ -53,7 +53,7 @@ class DirectionalStrategy(StrategyBase[ConfigT], ABC):
     def generate_signals(self, df: pd.DataFrame) -> list[Signal]:
         """
         Takes the feature-rich dataset and generates an array of Signal objects.
-        This is the actual strategy logic
+        This is the actual strategy logic. Must return None if no signal
         Args:
             df: pd.DataFrame
         """
