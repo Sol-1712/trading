@@ -1,7 +1,7 @@
-from trading.strategy_engine.strategies.directional import DirectionalStrategy
-from trading.strategy_engine.features.trend         import MAType, MovingAverage
-from trading.strategy_engine.core.signal            import Signal
-from trading.strategy_engine.core                   import StrategyConfig
+from .base                                   import DirectionalStrategy
+from trading.strategy_engine.features.trend  import MAType, MovingAverage
+from trading.strategy_engine.core.signal     import Signal
+from trading.strategy_engine.core            import StrategyConfig
 
 from dataclasses import dataclass
 import pandas as pd
