@@ -9,9 +9,9 @@ from pathlib import Path
 import subprocess
 
 
-from trading.data_utils.core import PROJECT_ROOT
-from trading.strategy_engine import STRATEGY_REGISTRY
-from .serialisation import serialize
+from trading.data_utils.core  import PROJECT_ROOT
+from trading.strategy_engine  import STRATEGY_REGISTRY
+from trading.backtester.utils import serialize
 
 
 @dataclass(frozen=True)
@@ -28,8 +28,8 @@ class RunContext:
         base_dir: Path = PROJECT_ROOT / 'runs'
         ) -> RunContext:
         now = datetime.now(timezone.utc)
-        timestamp = now.strftime("%Y%m%d_%H%M%S")
-        uid = uuid4().hex[:6]
+        timestamp = now.strftime("%Y%m%d_%H")
+        uid = uuid4().hex[:3]
 
         run_id = f"{timestamp}_{uid}"
         run_dir = base_dir / run_id

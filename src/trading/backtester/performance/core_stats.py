@@ -22,7 +22,7 @@ class CoreStats:
         Portfolio history from Portfolio.history() with columns:
         - equity: portfolio equity at bar end
         - position_units: signed position held
-        - bar_pnl: MTM PnL from price movement
+        - position_pnl: Position PnL from price movement
         - funding_pnl: funding payments
         - fees: fees paid
         - trade_occurred: bool flag if position changed
@@ -38,7 +38,7 @@ class CoreStats:
         if pnl_df is None or pnl_df.empty:
             raise ValueError("pnl_df cannot be None or empty")
 
-        required_cols = ['equity', 'position_units', 'bar_pnl', 'funding_pnl', 'fees']
+        required_cols = ['equity', 'position_units', 'position_pnl', 'funding_pnl', 'fees']
         missing = [c for c in required_cols if c not in pnl_df.columns]
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
@@ -64,8 +64,8 @@ class CoreStats:
         self.trade = df.get("trade_occurred", pd.Series(False, index=df.index)).astype(float).to_numpy()
 
         # pnl components
-        self.strategy_pnl = df["bar_pnl"].to_numpy()
-        self.position_pnl = df["bar_pnl"].to_numpy()
+        self.strategy_pnl = df["position_pnl"].to_numpy()
+        self.position_pnl = df["position_pnl"].to_numpy()
 
         self.funding_pnl = df["funding_pnl"].to_numpy()
         self.fee_pnl = df["fees"].to_numpy()

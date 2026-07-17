@@ -1,17 +1,15 @@
 import pandas as pd
 import logging
 
-
 from trading.data_utils.prepare                      import prepare_data
 from trading.backtester.engine.config_bases          import BacktestConfig
 from trading.backtester.execution                    import PerpDirectionalEngine
 from trading.strategy_engine.strategies.directional  import DirectionalStrategy
 from trading.strategy_engine.features                import FeatureRegistry
 from trading.strategy_engine.core                    import Signal, SignalDirection, StrategyBase
-from trading.backtester.performance                  import BacktestResults
 from trading.backtester.risk.temp_sizer              import simple_size
 from trading.backtester.portfolio                    import Portfolio, PortfolioSnapshot
-
+from .results                                        import BacktestResults
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +106,9 @@ class BacktestRunner:
 
             # Update portfolio
             state = self._portfolio.step(
-                timestamp = index[t],
-                fills     =  fills,
-                mtm_price = mark_close,
+                timestamp    = index[t],
+                fills        = fills,
+                mtm_price    = mark_close,
                 funding_rate = funding_rate)
 
             # Signal -> Target -> Risk
@@ -297,7 +295,7 @@ class BacktestRunner:
         logger.info("Validated %d signals — no lookahead detected.", len(signals))
 
 
-    def _size_pos(self, signal: Signal) -> float | None:
+    def _size_pos(self, signal: Signal | None) -> float | None:
         """
         Convert signal to a signed target position fraction.
         

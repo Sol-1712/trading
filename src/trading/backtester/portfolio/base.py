@@ -95,7 +95,7 @@ class Portfolio:
         4. Record snapshot at mark_close (for position fraction calc)
         
         PRICE BASIS:
-        - bar_pnl: uses mark_close (MTM)
+        - position_pnl: uses mark_close (MTM)
         - position_fraction: uses mark_close (MTM for leverage calc)
         - fills: use their own fill_price (from execution model)
         
@@ -131,14 +131,14 @@ class Portfolio:
 
         # ── 1. MTM existing position ─────────────────────────────────────
         # Position held during this bar earns close-to-close price change.
-        bar_pnl      = self._position_units * (mtm_price - prev_price)
-        self._equity += bar_pnl
+        position_pnl      = self._position_units * (mtm_price - prev_price)
+        self._equity += position_pnl
 
         # ── 2. Funding settlement ────────────────────────────────────────
         # Applied on position held at start of bar, at prev bar's close price.
         # Negative funding_pnl = equity decreases -> I paid.
 
-        funding_pnl   = -(self._position_units * prev_price * funding_rate)
+        funding_pnl   = -(self._position_units * mtm_price * funding_rate)
         self._equity += funding_pnl
 
         # ── 3. Execute fills ─────────────────────────────────────────────
@@ -182,10 +182,10 @@ class Portfolio:
             position_units    = self._position_units,
             position_fraction = position_fraction,
             equity            = self._equity,
-            bar_pnl           = bar_pnl,
+            position_pnl      = position_pnl,
             funding_pnl       = funding_pnl,
             fees              = total_fee,
-            net_pnl           = bar_pnl + funding_pnl - total_fee,
+            net_pnl           = position_pnl + funding_pnl - total_fee,
             leverage          = abs(position_fraction),
             trade_occurred    = len(fills) > 0,
         )

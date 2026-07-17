@@ -49,9 +49,6 @@ class ReturnMetrics:
         """
         return float(np.mean(self.core.returns))
 
-    
-
-
 
     @property
     def wins(self) -> np.ndarray:

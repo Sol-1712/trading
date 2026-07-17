@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 import pandas as pd
+
 from trading.strategy_engine.core import Signal
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,6 @@ class BacktestResults:
     
     Attributes
     ----------
-
     signals : list[Signal]
         Signal objects or None entries for each bar (length = len(data)).
     targets : list[float]

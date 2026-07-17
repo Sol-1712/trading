@@ -26,13 +26,13 @@ class PortfolioSnapshot:
         Signed position held *after* any rebalancing on this bar.
     equity : float
         Portfolio equity at end of bar, after MTM PnL and fees.
-    bar_pnl : float
-        Mark-to-market PnL earned by the *previous* position over this bar's
+    position_pnl : float
+        Position PnL earned by the *previous* position over this bar's
         price move. Realised before any rebalancing occurs.
     funding_pnl : float
-
+        Funding pnl this bar. Negative = paid, positive = recieved
     net_pnl : float
-
+        Total pnl on this bar. Calculated as position_pnl + funding_pnl - fee
     leverage: float
     
     fees : float
@@ -46,9 +46,9 @@ class PortfolioSnapshot:
     position_units:    float     # post-fill
     position_fraction: float     # post-fill: (units × price) / equity
     equity:            float     # post-fill
-    bar_pnl:           float     # MTM from price movement
+    position_pnl:      float     # Position PnL from price movement
     funding_pnl:       float     # funding payment (negative = paid, positive = received)
     fees:              float     # total fees paid this bar
-    net_pnl:           float     # bar_pnl + funding_pnl - fee
+    net_pnl:           float     # position_pnl + funding_pnl - fee
     leverage:          float     # abs(position_fraction)
     trade_occurred:    bool
