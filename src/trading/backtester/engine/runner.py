@@ -41,12 +41,9 @@ class BacktestRunner:
         self.strategy         = strategy
 
         self._registry        = FeatureRegistry()
-        self._portfolio       = Portfolio(
-                config.initial_capital, 
-                config.execution.fee_rate
-                )
-        self._engine   = PerpDirectionalEngine(config.execution)
-        self._mtm_col  = f"{config.execution.mtm_price_type.value}_close" 
+        self._portfolio       = Portfolio(initial_capital=config.initial_capital)
+        self._engine          = PerpDirectionalEngine(config.execution)
+        self._mtm_col         = f"{config.execution.mtm_price_type.value}_close" 
 
         logger.debug("BacktestRunner initialized with strategy=%s", 
                     type(self.strategy).__name__)

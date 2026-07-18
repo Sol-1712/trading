@@ -31,7 +31,7 @@ class ExecutionEngine(ABC):
 
 
         self.config                     = config
-        self._fill_model                = config.fill_model_cls()
+        self._fill_model                = config.fill_model_cls(fee_rate=config.fee_rate)
         self._queue:   dict[int, Order] = {}
         self._pending: list[Order]      = []
         self._pending_notional: float   = 0.0

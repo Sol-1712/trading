@@ -19,6 +19,12 @@ class FillModel(ABC):
     timing given an order and bar data. Can model slippage, partial fills,
     and execution delays.
     """
+
+    def __init__(self, fee_rate: float) -> None:
+        self.fee_rate = fee_rate
+        if not 0.0 <= self.fee_rate < 1.0:
+            raise ValueError(f"fee_rate {self.fee_rate} out of range [0, 1.0)")
+
     price_type: ClassVar[PriceType]
 
     @abstractmethod
@@ -59,11 +65,14 @@ class Fill:
         partial fills or orders that span multiple bars.
     fill_price : float
         Execution price per unit (may include slippage).
+    fees : float
+        Fees paid for the fill.
     """
     placed_at:    datetime
     filled_at:    datetime
     units_filled: float
     fill_price:   float
+    fees:         float
     
     def __post_init__(self):
         if self.fill_price <= 0:

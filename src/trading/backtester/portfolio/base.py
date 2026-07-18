@@ -28,19 +28,17 @@ class Portfolio:
     ----------
     initial_capital : float
         Starting equity in quote currency (e.g. USDT).
-    fee_rate : float
-        Proportional fee applied to trade notional (e.g. 0.0005 = 0.05%).
 
     Example
     -------
-    >>> portfolio = Portfolio(initial_capital=10_000.0, fee_rate=0.0005)
+    >>> portfolio = Portfolio(initial_capital=10_000.0)
     >>> snap = portfolio.step(timestamp=ts, price=50_000.0, target_fraction=0.5)
     >>> df = portfolio.history()
     """
 
     _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
-    def __init__(self, initial_capital: float, fee_rate: float) -> None:
+    def __init__(self, initial_capital: float, max_leverage: float | None = None) -> None:
         """
         Initialize portfolio simulator.
         
@@ -49,31 +47,30 @@ class Portfolio:
         initial_capital : float
             Starting equity in quote currency (e.g., USDT).
             Must be positive.
-        fee_rate : float
-            Proportional fee as decimal (e.g., 0.0005 = 0.05%).
-            Checked to be in range [0.0, 0.01].
-            
+        max_leverage : float | None
+            Maximum leverage allowed. If None, no leverage limit is applied.
+            Purely for a defensive check.
+
         Raises
         ------
         ValueError
-            If initial_capital <= 0 or fee_rate outside [0, 0.01].
+            If initial_capital <= 0.
         """
         
         if initial_capital <= 0:
             raise ValueError(f"initial_capital must be positive, got {initial_capital}")
-        if not (0.0 <= fee_rate <= 0.01):
-            raise ValueError(f"fee_rate {fee_rate} outside expected range [0, 0.01]")
+
         
         self._initial_capital: float                   = initial_capital
         self._equity:          float                   = initial_capital
         self._position_units:  float                   = 0.0
         self._last_price:      float | None            = None
-        self._fee_rate:        float                   = fee_rate
         self._snapshots:       list[PortfolioSnapshot] = []
+        self._max_leverage:    float | None            = max_leverage 
         
         logger = logging.getLogger(__name__)
-        logger.debug("Portfolio initialized: capital=%.2f, fee_rate=%.5f", 
-                    initial_capital, fee_rate)
+        logger.debug("Portfolio initialized: capital=%.2f", 
+                    initial_capital)
 
     # ------------------------------------------------------------------ #
     # Primary interface                                                     #
@@ -136,7 +133,7 @@ class Portfolio:
         self._equity += position_pnl
 
         # ── 2. Funding settlement ────────────────────────────────────────
-        # Applied on position held at start of bar, at prev bar's close price.
+        # Applied on position held at start of bar, at mtm price.
         # Negative funding_pnl = equity decreases -> I paid.
 
         funding_pnl   = -(self._position_units * mtm_price * funding_rate)
@@ -147,10 +144,7 @@ class Portfolio:
 
         total_fee = 0.0
         for fill in fills:
-            fee = abs(fill.units_filled) * fill.fill_price * self._fee_rate
-            if not (0 < fill.fill_price < 1e10):
-                raise ValueError(f"Invalid fill_price {fill.fill_price} at {timestamp}")
-            
+            fee = fill.fees
             if fee > remaining_equity:
                 logger.warning(
                     "Fee %.2f exceeds remaining equity %.2f at %s — ruin.",
@@ -167,7 +161,16 @@ class Portfolio:
             raise RuntimeError(
                 f"Portfolio state became NaN at {timestamp}. "
                 f"position_units={self._position_units}, equity={self._equity}"
-    )
+        )
+
+        if self._equity > 0 and self._max_leverage is not None:
+            implied_leverage = abs(self._position_units * mtm_price / self._equity)
+            if implied_leverage > self._max_leverage:
+                raise RuntimeError(
+                    f"Leverage {implied_leverage:.2f}x exceeds hard cap "
+                    f"{self._max_leverage:.2f}x at {timestamp}. "
+                    f"position_units={self._position_units}, equity={self._equity}"
+                )
 
         # ── 5. Update price reference ────────────────────────────────────
         self._last_price = mtm_price

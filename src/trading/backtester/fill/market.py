@@ -19,8 +19,10 @@ class MarketFillModel(FillModel):
     """
     price_type = PriceType.LAST
 
-    def __init__(self) -> None:
+    def __init__(self, fee_rate: float) -> None:
+        super().__init__(fee_rate)
         self._open_col   = f"{self.price_type.value}_open"
+
 
     def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
 
@@ -38,7 +40,7 @@ class MarketFillModel(FillModel):
                 f"Cannot calculate units for order {order.delta_notional}"
     )
         
-        units = order.delta_notional / fill_price
+        units = order.delta_notional / fill_price # Always fill entire order
         expected_sign = np.sign(order.delta_notional)
         actual_sign = np.sign(units)
 
@@ -47,11 +49,13 @@ class MarketFillModel(FillModel):
                 f"Fill sign mismatch: order {order.delta_notional} → fill {units}"
     )
         timestamp = cast(pd.Timestamp, bar.name).to_pydatetime()
-        
+
+        fees = abs(units) * fill_price * self.fee_rate
         fill = Fill(
             placed_at=order.placed_at,
             filled_at=timestamp,
             units_filled=units,
-            fill_price=fill_price
+            fill_price=fill_price,
+            fees=fees
         )
         return fill
