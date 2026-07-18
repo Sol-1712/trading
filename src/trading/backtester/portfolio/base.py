@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import math
 
-from trading.backtester.portfolio.snapshot import PortfolioSnapshot
+from .snapshot import PortfolioSnapshot
+from .trade import TradeLog, Trade
 from trading.backtester.fill import Fill
 
 

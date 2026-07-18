@@ -25,7 +25,7 @@ testlab.ipynb
 .github/
 
 # Ignore strategies
-research/strategy_notes/strategy_ideas.txt
+research/strategy_notes
 
 # Data
 data/
