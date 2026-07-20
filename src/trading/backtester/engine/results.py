@@ -1,6 +1,7 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import pandas as pd
+from pathlib import Path
 
 from trading.strategy_engine.core import Signal
 from trading.backtester.portfolio.trade import TradeLog
@@ -46,3 +47,15 @@ class BacktestResults:
         logger.debug("BacktestResults created: %d signals, final equity=%.2f",
                     sum(1 for s in self.signals if s is not None),
                     self.portfolio_history['equity'].iloc[-1])
+
+    
+    def save(self, run_dir: Path) -> None:
+        self.portfolio_history.to_parquet(run_dir / "portfolio_history.parquet")
+
+        trades_df = pd.DataFrame([
+            {**asdict(t), "direction": t.direction.name} for t in self.trade_log.closed_trades
+        ])
+        trades_df.to_parquet(run_dir / "trades.parquet")
+    
+        # Maybe save signals later if I want.
+        logger.info("Successfully saved backtest results to %s", run_dir)

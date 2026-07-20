@@ -10,4 +10,3 @@ class Signal:
     strength:  float
     timestamp: datetime
     source:    str  = ""
-    metadata:  dict[str, Any] = field(default_factory=dict)

@@ -60,16 +60,16 @@ class DirectionalStrategy(StrategyBase[ConfigT], ABC):
         pass
 
 
-    def _long(self, strength: float, timestamp: datetime, **meta) -> Signal:
+    def _long(self, strength: float, timestamp: datetime) -> Signal:
         return Signal(SignalDirection.LONG, strength, timestamp,
-                      source=self.__class__.__name__, metadata=meta)
+                      source=self.__class__.__name__)
 
-    def _short(self, strength: float, timestamp: datetime, **meta) -> Signal:
+    def _short(self, strength: float, timestamp: datetime) -> Signal:
         return Signal(SignalDirection.SHORT, strength, timestamp,
-                      source=self.__class__.__name__, metadata=meta)
+                      source=self.__class__.__name__)
 
-    def _flat(self, timestamp: datetime, **meta) -> Signal:
+    def _flat(self, timestamp: datetime) -> Signal:
         return Signal(SignalDirection.FLAT, 0.0, timestamp,
-                      source=self.__class__.__name__, metadata=meta)
+                      source=self.__class__.__name__)
 
 
