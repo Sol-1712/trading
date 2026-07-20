@@ -15,12 +15,11 @@ from .trade      import TradeMetrics
 class PerformanceReport:
     def __init__(
         self, portfolio_history: pd.DataFrame,
-        trade_log: TradeLog, 
-        rf: float = 0.0, 
-        mar: float = 0.0
+        trade_log: TradeLog,
+        rf: float = 0.0,
     ) -> None:
 
-        self.core     = CoreStats(portfolio_history, rf=rf, mar=mar)
+        self.core = CoreStats(portfolio_history, rf=rf)
 
         self.returns  = ReturnMetrics(self.core)
         self.risk     = RiskMetrics(self.core)

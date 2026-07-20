@@ -15,13 +15,13 @@ class ReturnMetrics(MetricsGroup):
     @cached_property
     def _wins(self) -> np.ndarray:
         r = self.core.returns
-        return r[r > self.core.mar]
+        return r[r > 0]
 
 
     @cached_property
     def _losses(self) -> np.ndarray:
         r = self.core.returns
-        return r[r < self.core.mar]  
+        return r[r < 0]
 
 
     @property
@@ -96,9 +96,9 @@ class ReturnMetrics(MetricsGroup):
 
     @property
     def avg_bar_win_loss_ratio(self) -> float:
-        if self.avg_loss == 0:
+        if self.avg_bar_loss == 0:
             return float("nan")
-        return float(abs(self.avg_win / self.avg_loss))
+        return float(abs(self.avg_bar_win / self.avg_bar_loss))
 
 
     @property

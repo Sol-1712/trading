@@ -16,12 +16,12 @@ class RiskMetrics(MetricsGroup):
         return self.core.position_fraction < 0
 
     @cached_property
-    def _long_returns(self) -> np.ndarray:
-        return self.core.returns[self._long_mask]
+    def _long_excess(self) -> np.ndarray:
+        return self.core.excess_returns[self._long_mask]
 
     @cached_property
-    def _short_returns(self) -> np.ndarray:
-        return self.core.returns[self._short_mask]
+    def _short_excess(self) -> np.ndarray:
+        return self.core.excess_returns[self._short_mask]
 
     @cached_property
     def _drawdown_durations(self) -> np.ndarray:
@@ -80,56 +80,42 @@ class RiskMetrics(MetricsGroup):
 
     @property
     def sharpe(self) -> float:
-        """Annualised Sharpe ratio of net bar returns."""
-        return compute_sharpe(
-            self.core.returns,
-            rf=self.core.rf,
-            ann_factor=self.core.ann_factor,
-        )
+        """Per-period Sharpe of excess bar returns."""
+        return compute_sharpe(self.core.excess_returns)
 
     @property
     def annualised_sharpe(self) -> float:
-        """Annualised Sharpe ratio (alias of sharpe)."""
-        value = self.sharpe
-        return float("nan") if np.isnan(value) else value
+        """Annualised Sharpe: per-period Sharpe scaled by sqrt(periods_per_year)."""
+        return self.sharpe * self.core.ann_sqrt
 
     @property
     def long_sharpe(self) -> float:
-        """Annualised Sharpe ratio using returns while long."""
-        if self._long_returns.size == 0:
+        """Annualised Sharpe of excess returns while long."""
+        if self._long_excess.size == 0:
             return float("nan")
-        return compute_sharpe(
-            self._long_returns,
-            rf=self.core.rf,
-            ann_factor=self.core.ann_factor,
-        )
+        return compute_sharpe(self._long_excess) * self.core.ann_sqrt
 
     @property
     def short_sharpe(self) -> float:
-        """Annualised Sharpe ratio using returns while short."""
-        if self._short_returns.size == 0:
+        """Annualised Sharpe of excess returns while short."""
+        if self._short_excess.size == 0:
             return float("nan")
-        return compute_sharpe(
-            self._short_returns,
-            rf=self.core.rf,
-            ann_factor=self.core.ann_factor,
-        )
+        return compute_sharpe(self._short_excess) * self.core.ann_sqrt
 
     @property
     def sortino(self) -> float:
-        """Annualised Sortino ratio using downside deviation."""
-        if self.core.log_returns.size == 0:
+        """Annualised Sortino ratio (Excess returns)."""
+        if self.core.returns.size == 0:
             return float("nan")
 
-        log_mar = np.log1p(self.core.mar)
-        excess_log = self.core.log_returns - log_mar
-        downside = np.minimum(0.0, excess_log)
+        downside = np.minimum(0.0, self.core.excess_returns)
         dd_std = np.sqrt(np.mean(downside ** 2))
-        if dd_std == 0:
-            return float("nan")
+        
+        if np.isclose(dd_std, 0):
+            return np.nan
 
-        excess = self.core.returns - self.core.mar
-        return float((np.mean(excess) / dd_std) * self.core.ann_sqrt)
+
+        return float((np.mean(self.core.excess_returns) / dd_std) * self.core.ann_sqrt)
 
     @property
     def calmar(self) -> float:
@@ -166,8 +152,8 @@ class RiskMetrics(MetricsGroup):
 
     @property
     def downside_deviation(self) -> float:
-        """Annualised downside deviation below MAR."""
-        downside = np.minimum(0.0, self.core.returns - self.core.mar)
+        """Annualised downside deviation of returns below zero."""
+        downside = np.minimum(0.0, self.core.returns)
         dd_std = np.sqrt(np.mean(downside ** 2))
         return float(dd_std * self.core.ann_sqrt)
 

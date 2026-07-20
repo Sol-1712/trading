@@ -16,6 +16,13 @@ class CoreStats:
 
     Eager: raw column extraction + validation only.
     Lazy (cached_property): everything derived.
+
+    Parameters
+    ----------
+    portfolio_history : pd.DataFrame
+        Portfolio history.
+    rf : float
+        Annualised simple risk-free rate (e.g. 0.05 = 5%).
     """
     REQUIRED_COLS = (
         "equity", "position_units", "position_fraction",
@@ -23,14 +30,13 @@ class CoreStats:
         "leverage", "trade_occurred",
     )
 
-    def __init__(self, portfolio_history: pd.DataFrame, rf: float = 0.0, mar: float = 0.0):
+    def __init__(self, portfolio_history: pd.DataFrame, rf: float = 0.0):
         self._validate(portfolio_history)
 
         df = portfolio_history.copy()      
         df.index = pd.to_datetime(df.index)
 
-        self.rf  = rf
-        self.mar = mar
+        self.rf = rf
 
         # --- raw columns only, eager ---
         self.equity             = df["equity"].to_numpy()
@@ -53,9 +59,11 @@ class CoreStats:
 
         self.freq, self.ann_factor = infer_ann_factor(cast(pd.DatetimeIndex, df.index))
         self.ann_sqrt = np.sqrt(self.ann_factor)
+        self.rf_bar = (1 + self.rf)**(1/self.ann_factor)-1
 
         logger.debug("CoreStats initialized: %d bars, freq=%s, ann_factor=%.0f",
                      self.n_bars, self.freq, self.ann_factor)
+    
 
     def _validate(self, df: pd.DataFrame) -> None:
         if df is None or df.empty:
@@ -63,6 +71,12 @@ class CoreStats:
         missing = [c for c in self.REQUIRED_COLS if c not in df.columns]
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
+
+        for col in self.REQUIRED_COLS:
+            if df[col].isna().any():
+                raise ValueError(
+                    f"{col} contains NaNs"
+                )
 
     # ------------------------------------------------------------------
     # Derived — lazy
@@ -87,7 +101,7 @@ class CoreStats:
 
     @cached_property
     def excess_returns(self) -> np.ndarray:
-        return self.returns - self.rf
+        return self.returns - self.rf_bar
 
     # --- Return decomposition (component-level, agrees with `returns` by construction) ---
 

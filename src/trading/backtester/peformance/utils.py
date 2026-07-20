@@ -111,49 +111,40 @@ def safe_divide(numerator: np.ndarray, denominator: np.ndarray) -> np.ndarray:
     )
 
 
-def compute_sharpe(returns: np.ndarray, rf: float, ann_factor: float | None) -> float:
+def compute_sharpe(returns: np.ndarray) -> float:
     """
-    Compute Sharpe ratio from a return series.
-    
-    Calculates excess return (returns - risk-free rate) divided by volatility.
-    Optionally annualizes by multiplying by sqrt(periods_per_year).
-    
+    Compute per-period Sharpe ratio: mean(returns) / std(returns, ddof=1).
+
+    Does not subtract a risk-free rate — pass excess returns if needed.
+    Does not annualise — multiply by sqrt(periods_per_year) externally.
+
     Parameters
     ----------
     returns : np.ndarray
-        Per-period returns (1D array). Should be decimal form (e.g., 0.01 = 1%).
-    rf : float
-        Per-period risk-free rate (log-transformed). Typically close to 0.
-    ann_factor : float | None
-        Annualization factor (periods per year). If provided, result is scaled
-        by sqrt(ann_factor). If None, returns per-period Sharpe.
-        
+        Per-period returns (decimal form, e.g. 0.01 = 1%).
+
     Returns
     -------
     float
-        Sharpe ratio. Returns np.nan if returns have zero volatility.
-        
+        Per-period Sharpe ratio. np.nan if volatility is zero.
+
     Raises
     ------
     ValueError
-        If returns array is None or empty.
+        If returns is None, empty, or contains NaN.
     """
+
     if returns is None or len(returns) == 0:
         raise ValueError("returns array cannot be None or empty")
-    
+
+    if np.isnan(returns).any():
+        raise ValueError("returns contain NaN values")
+
     std = np.std(returns, ddof=1)
 
-    if std == 0:
-        logger.warning("Returns have zero volatility, returning NaN for Sharpe")
+    if np.isclose(std, 0):
         return np.nan
-    
-    excess = returns - np.log1p(rf)
-    sharpe = float(np.mean(excess) / std)
 
-    if ann_factor is not None:
-        if ann_factor <= 0:
-            raise ValueError(f"ann_factor must be positive, got {ann_factor}")
-        sharpe *= float(np.sqrt(ann_factor))
+    sharpe = np.mean(returns) / std
 
-    return sharpe
-
+    return float(sharpe)

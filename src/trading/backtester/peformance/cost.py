@@ -19,11 +19,8 @@ class CostMetrics(MetricsGroup):
 
     @cached_property
     def _sharpe(self) -> float:
-        return compute_sharpe(
-            self.core.returns,
-            rf=self.core.rf,
-            ann_factor=self.core.ann_factor,
-        )
+        """Annualised Sharpe of excess returns (matches RiskMetrics.annualised_sharpe)."""
+        return compute_sharpe(self.core.excess_returns) * self.core.ann_sqrt
 
     @cached_property
     def _position_fraction_delta(self) -> np.ndarray:
@@ -75,23 +72,15 @@ class CostMetrics(MetricsGroup):
     @property
     def fee_drag_sharpe(self) -> float:
         """Sharpe reduction attributable to fees."""
-        returns_no_fee = self.core.returns + self.core.fee_returns
-        sharpe_no_fee = compute_sharpe(
-            returns_no_fee,
-            rf=self.core.rf,
-            ann_factor=self.core.ann_factor,
-        )
+        excess_no_fee = self.core.returns + self.core.fee_returns - self.core.rf_bar
+        sharpe_no_fee = compute_sharpe(excess_no_fee) * self.core.ann_sqrt
         return float(sharpe_no_fee - self._sharpe)
 
     @property
     def funding_drag_sharpe(self) -> float:
         """Sharpe impact of funding payments."""
-        returns_no_funding = self.core.returns - self.core.funding_returns
-        sharpe_no_funding = compute_sharpe(
-            returns_no_funding,
-            rf=self.core.rf,
-            ann_factor=self.core.ann_factor,
-        )
+        excess_no_funding = self.core.returns - self.core.funding_returns - self.core.rf_bar
+        sharpe_no_funding = compute_sharpe(excess_no_funding) * self.core.ann_sqrt
         return float(sharpe_no_funding - self._sharpe)
 
     @property

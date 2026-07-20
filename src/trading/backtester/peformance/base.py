@@ -2,7 +2,7 @@
 
 from functools import cached_property
 
-from trading.backtester.performance import CoreStats
+from .core_stats import CoreStats
 
 
 class MetricsGroup:
