@@ -127,6 +127,7 @@ class BacktestRunner:
         return BacktestResults(
             signals = signals,
             targets = targets,
+            trade_log = self._portfolio.trade_log,
             portfolio_history = history,
         )
 

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from trading.strategy_engine.core import Signal
+from trading.backtester.portfolio.trade import TradeLog
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +23,15 @@ class BacktestResults:
         Signal objects or None entries for each bar (length = len(data)).
     targets : list[float]
         Target position fractions output by position sizer (length = len(data)).
+    trade_log : TradeLog
+        Trade log object containing open and closed trades.
     portfolio_history : pd.DataFrame
         Portfolio state snapshots indexed by timestamp with columns: equity,
         position_units, position_pnl, funding_pnl, fees, leverage, etc.
     """
     signals:              list[Signal]
     targets:              list[float | None]
+    trade_log:            TradeLog
     portfolio_history:    pd.DataFrame
     
     def __post_init__(self):

@@ -60,7 +60,7 @@ class Portfolio:
         if initial_capital <= 0:
             raise ValueError(f"initial_capital must be positive, got {initial_capital}")
 
-        
+        self.trade_log:        TradeLog                = TradeLog()
         self._initial_capital: float                   = initial_capital
         self._equity:          float                   = initial_capital
         self._position_units:  float                   = 0.0
@@ -138,6 +138,7 @@ class Portfolio:
 
         funding_pnl   = -(self._position_units * mtm_price * funding_rate)
         self._equity += funding_pnl
+        self.trade_log.accrue_bar(funding_pnl)
 
         # ── 3. Execute fills ─────────────────────────────────────────────
         remaining_equity = self._equity
@@ -155,8 +156,16 @@ class Portfolio:
             remaining_equity -= fee
             total_fee += fee
             self._position_units += fill.units_filled
+            self.trade_log.on_fill(fill, timestamp)
 
         # ── 4.Verify state ────────────────────────────────────
+        expected_units = self.trade_log.open_trade.units if self.trade_log.open_trade else 0.0
+        if not math.isclose(self._position_units, expected_units, abs_tol=1e-9):
+            raise RuntimeError(
+                f"Position/TradeLog mismatch at {timestamp}: "
+                f"portfolio={self._position_units}, trade_log={expected_units}"
+            )
+
         if math.isnan(self._position_units) or math.isnan(self._equity):
             raise RuntimeError(
                 f"Portfolio state became NaN at {timestamp}. "

@@ -29,7 +29,6 @@ class ExecutionEngine(ABC):
 
     def __init__(self, config: ExecutionConfig) -> None:
 
-
         self.config                     = config
         self._fill_model                = config.fill_model_cls(fee_rate=config.fee_rate)
         self._queue:   dict[int, Order] = {}

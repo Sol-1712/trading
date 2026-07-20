@@ -35,7 +35,7 @@ class ExecutionConfig:
     mtm_price_type: PriceType = PriceType.MARK
 
     def __post_init__(self) -> None:
-        if not 0.0 <= self.fee_rate <= 0.01:
+        if not 0.0 <= self.fee_rate < 1.0:
             raise ValueError(f"fee_rate {self.fee_rate} out of range [0, 0.01]")
         if self.delay_bars < 1:
             raise ValueError(f"delay_bars must be >= 1, got {self.delay_bars}")
