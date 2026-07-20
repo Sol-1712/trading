@@ -21,8 +21,8 @@ METRICS = {
     ],
     "risk": [
         "max_drawdown", "max_drawdown_duration", "avg_drawdown_duration", "avg_drawdown",
-        "time_in_drawdown", "sharpe", "annualised_sharpe", "long_sharpe", "short_sharpe"
-        "sortino","calmar", "var_95", "var_99", "cvar_95",
+        "time_in_drawdown", "sharpe", "annualised_sharpe", "long_sharpe", "short_sharpe",
+        "sortino", "calmar", "var_95", "var_99", "cvar_95",
         "cvar_99", "downside_deviation","volatility", "longest_losing_streak",
     ],
     "cost": [

@@ -1,11 +1,211 @@
-import logging
 import numpy as np
 from functools import cached_property
 
 from .base import MetricsGroup
+from .utils import compute_sharpe
 
-logger = logging.getLogger(__name__)
 
-class RiskMetrics:
-    pass
+class RiskMetrics(MetricsGroup):
 
+    @cached_property
+    def _long_mask(self) -> np.ndarray:
+        return self.core.position_fraction > 0
+
+    @cached_property
+    def _short_mask(self) -> np.ndarray:
+        return self.core.position_fraction < 0
+
+    @cached_property
+    def _long_returns(self) -> np.ndarray:
+        return self.core.returns[self._long_mask]
+
+    @cached_property
+    def _short_returns(self) -> np.ndarray:
+        return self.core.returns[self._short_mask]
+
+    @cached_property
+    def _drawdown_durations(self) -> np.ndarray:
+        """Lengths in bars of consecutive drawdown periods."""
+        in_drawdown = self.core.drawdown < 0
+        if not np.any(in_drawdown):
+            return np.array([], dtype=int)
+
+        padded = np.r_[0, in_drawdown.astype(int), 0]
+        diff = np.diff(padded)
+        starts = np.where(diff == 1)[0]
+        ends = np.where(diff == -1)[0]
+        return ends - starts
+
+    @cached_property
+    def _drawdown_episode_depths(self) -> np.ndarray:
+        """Trough drawdown for each distinct drawdown episode."""
+        dd = self.core.drawdown
+        in_drawdown = dd < 0
+        if not np.any(in_drawdown):
+            return np.array([], dtype=np.float64)
+
+        padded = np.r_[False, in_drawdown, False]
+        diff = np.diff(padded.astype(int))
+        starts = np.where(diff == 1)[0]
+        ends = np.where(diff == -1)[0]
+        return np.array([dd[start:end].min() for start, end in zip(starts, ends)])
+
+    @property
+    def max_drawdown(self) -> float:
+        """Maximum peak-to-trough drawdown."""
+        return float(self.core.drawdown.min())
+
+    @property
+    def max_drawdown_duration(self) -> float:
+        """Longest drawdown episode in bars."""
+        durations = self._drawdown_durations
+        return float(durations.max()) if durations.size > 0 else 0.0
+
+    @property
+    def avg_drawdown_duration(self) -> float:
+        """Average drawdown episode length in bars."""
+        durations = self._drawdown_durations
+        return float(durations.mean()) if durations.size > 0 else 0.0
+
+    @property
+    def avg_drawdown(self) -> float:
+        """Average trough drawdown across drawdown episodes."""
+        depths = self._drawdown_episode_depths
+        return float(depths.mean()) if depths.size > 0 else 0.0
+
+    @property
+    def time_in_drawdown(self) -> float:
+        """Fraction of bars spent in drawdown."""
+        return float(np.mean(self.core.drawdown < 0))
+
+    @property
+    def sharpe(self) -> float:
+        """Annualised Sharpe ratio of net bar returns."""
+        return compute_sharpe(
+            self.core.returns,
+            rf=self.core.rf,
+            ann_factor=self.core.ann_factor,
+        )
+
+    @property
+    def annualised_sharpe(self) -> float:
+        """Annualised Sharpe ratio (alias of sharpe)."""
+        value = self.sharpe
+        return float("nan") if np.isnan(value) else value
+
+    @property
+    def long_sharpe(self) -> float:
+        """Annualised Sharpe ratio using returns while long."""
+        if self._long_returns.size == 0:
+            return float("nan")
+        return compute_sharpe(
+            self._long_returns,
+            rf=self.core.rf,
+            ann_factor=self.core.ann_factor,
+        )
+
+    @property
+    def short_sharpe(self) -> float:
+        """Annualised Sharpe ratio using returns while short."""
+        if self._short_returns.size == 0:
+            return float("nan")
+        return compute_sharpe(
+            self._short_returns,
+            rf=self.core.rf,
+            ann_factor=self.core.ann_factor,
+        )
+
+    @property
+    def sortino(self) -> float:
+        """Annualised Sortino ratio using downside deviation."""
+        if self.core.log_returns.size == 0:
+            return float("nan")
+
+        log_mar = np.log1p(self.core.mar)
+        excess_log = self.core.log_returns - log_mar
+        downside = np.minimum(0.0, excess_log)
+        dd_std = np.sqrt(np.mean(downside ** 2))
+        if dd_std == 0:
+            return float("nan")
+
+        excess = self.core.returns - self.core.mar
+        return float((np.mean(excess) / dd_std) * self.core.ann_sqrt)
+
+    @property
+    def calmar(self) -> float:
+        """CAGR divided by absolute maximum drawdown."""
+        if self.max_drawdown == 0:
+            return float("nan")
+
+        n_years = self.core.n_obs / self.core.ann_factor
+        if n_years == 0:
+            return float("nan")
+
+        cagr = (self.core.equity[-1] / self.core.equity[0]) ** (1 / n_years) - 1
+        return float(cagr / abs(self.max_drawdown))
+
+    @property
+    def var_95(self) -> float:
+        """95% Value at Risk (positive loss magnitude)."""
+        return self._var(0.05)
+
+    @property
+    def var_99(self) -> float:
+        """99% Value at Risk (positive loss magnitude)."""
+        return self._var(0.01)
+
+    @property
+    def cvar_95(self) -> float:
+        """95% Conditional Value at Risk."""
+        return self._cvar(0.05)
+
+    @property
+    def cvar_99(self) -> float:
+        """99% Conditional Value at Risk."""
+        return self._cvar(0.01)
+
+    @property
+    def downside_deviation(self) -> float:
+        """Annualised downside deviation below MAR."""
+        downside = np.minimum(0.0, self.core.returns - self.core.mar)
+        dd_std = np.sqrt(np.mean(downside ** 2))
+        return float(dd_std * self.core.ann_sqrt)
+
+    @property
+    def volatility(self) -> float:
+        """Annualised volatility of log returns."""
+        sd = float(np.std(self.core.log_returns, ddof=1))
+        return float(sd * self.core.ann_sqrt)
+
+    @property
+    def longest_losing_streak(self) -> float:
+        """Longest run of consecutive losing bars."""
+        returns = self.core.returns
+        if returns.size == 0:
+            return 0.0
+
+        losses = returns < 0
+        if not np.any(losses):
+            return 0.0
+
+        padded = np.r_[0, losses.astype(int), 0]
+        diff = np.diff(padded)
+        run_starts = np.where(diff == 1)[0]
+        run_ends = np.where(diff == -1)[0]
+        streak_lengths = run_ends - run_starts
+        return float(streak_lengths.max())
+
+    def _var(self, alpha: float) -> float:
+        if self.core.log_returns.size == 0:
+            return float("nan")
+        return float(-np.percentile(self.core.log_returns, alpha * 100))
+
+    def _cvar(self, alpha: float) -> float:
+        if self.core.log_returns.size == 0:
+            return float("nan")
+
+        var_alpha = np.percentile(self.core.log_returns, alpha * 100)
+        tail_losses = self.core.log_returns[self.core.log_returns <= var_alpha]
+        if tail_losses.size == 0:
+            return 0.0
+        return float(-np.mean(tail_losses))
