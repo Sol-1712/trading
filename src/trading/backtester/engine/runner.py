@@ -60,7 +60,7 @@ class BacktestRunner:
         Returns
         -------
         BacktestResults
-            Complete backtest output including price data, signals, targets, and
+            Complete backtest output including signals, targets, trade log and
             portfolio history (equity, positions, PnL components by bar).
             
         Raises

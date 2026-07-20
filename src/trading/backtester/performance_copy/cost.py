@@ -7,5 +7,5 @@ from .utils import compute_sharpe
 
 logger = logging.getLogger(__name__)
 
-class CostMetrics:
+class CostMetrics(MetricsGroup):
     pass

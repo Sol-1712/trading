@@ -15,13 +15,13 @@ SECONDS_TO_PERIODS_24_7: dict[int, tuple[str, int]] = {
 
 METRICS = {
     "returns": [
-        "mean_return","cagr", "net_return", "gross_return", "avg_win_loss", 
+        "mean_bar_return","cagr", "net_return", "gross_return", "avg_win_loss", 
          "skew", "kurtosis", "hit_rate_all", "median_bar_return", "avg_bar_win", "avg_bar_loss",
          "avg_bar_win_loss_ratio", "largest_bar_return", "smallest_bar_return",
     ],
     "risk": [
-        "max_drawdown", "max_drawdown_duration", "avg_drawdown_duration", "avg_drawdon",
-        "time_in_drawdown", "sharpe", "annualised_sharpe",
+        "max_drawdown", "max_drawdown_duration", "avg_drawdown_duration", "avg_drawdown",
+        "time_in_drawdown", "sharpe", "annualised_sharpe", "long_sharpe", "short_sharpe"
         "sortino","calmar", "var_95", "var_99", "cvar_95",
         "cvar_99", "downside_deviation","volatility", "longest_losing_streak",
     ],
@@ -29,14 +29,14 @@ METRICS = {
         "total_fee_return", "total_funding_return", "total_cost_return",
         "total_fee_pct_of_net", "funding_pct_of_net", "total_cost_pct_of_net",
         "cost_to_gross_ratio", "fee_drag_sharpe", "funding_drag_sharpe",
-        "expectancy", "profit_factor",
         "avg_fee_per_bar", "avg_fee_per_trade", "annualised_turnover", "pct_bars_paying_funding",
     ],
-    "position": [
+    "trade": [
         "num_trades", "avg_position_size", "max_position_size", "avg_long_size",
-        "avg_short_size", "time_long", "time_short", "time_flat", "hit_rate"
-        "time_in_market", "avg_holding_period", "largest_win", "largest_loss",
-        "long_pnl_pct", "short_pnl_pct", "long_sharpe", "short_sharpe",
+        "avg_short_size", "time_long", "time_short", "time_flat",
+        "expectancy", "profit_factor", "hit_rate_trade", "time_in_market",
+        "avg_holding_period", "largest_win", "largest_loss",
+        "long_pnl_pct", "short_pnl_pct",
     ],
 }
 

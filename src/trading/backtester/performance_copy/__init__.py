@@ -3,7 +3,7 @@ from .core_stats import CoreStats
 from .returns import ReturnMetrics
 from .risk import RiskMetrics
 from .cost import CostMetrics
-from .position import PositionMetrics
+from .trade import TradeMetrics
 
  
 __all__ = [
@@ -12,5 +12,5 @@ __all__ = [
     "ReturnMetrics",
     "RiskMetrics",
     "CostMetrics",
-    "PositionMetrics",
+    "TradeMetrics",
 ]
