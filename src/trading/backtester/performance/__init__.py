@@ -1,4 +1,4 @@
-from .report import PerformanceReport, _DISPLAY_LABELS
+from .report import PerformanceReport, _DISPLAY_LABELS, display_report
 from .metrics import CoreStats, ReturnMetrics, RiskMetrics, CostMetrics, TradeMetrics
  
 __all__ = [
@@ -9,4 +9,5 @@ __all__ = [
     "CostMetrics",
     "TradeMetrics",
     "_DISPLAY_LABELS",
+    "display_report",
 ]

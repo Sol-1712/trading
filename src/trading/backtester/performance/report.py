@@ -3,10 +3,12 @@ import numpy as np
 from pathlib import Path
 import json
 
+from IPython.display import display
+
 from trading.backtester.engine import BacktestConfig
 from trading.backtester.portfolio import TradeLog
-from trading.data_utils.core import PROJECT_ROOT
 from .metrics import CoreStats, ReturnMetrics, RiskMetrics, CostMetrics, TradeMetrics
+from .metrics.utils import METRICS, SECONDS_TO_PERIODS_24_7
 
 _SECTION_TITLES = {
     "returns": "Returns",
@@ -162,12 +164,62 @@ class PerformanceReport:
 
 
 def display_report(report: dict[str, float], backtest_config: BacktestConfig) -> None:
-    # Want to display from flat dict, backtest_config
-    # Build the core section and the metrics section
+    capital = backtest_config.initial_capital
+    display(_core_section(report, backtest_config))
+    for section_key, metric_keys in METRICS.items():
+        title = _SECTION_TITLES[section_key]
+        display(_metric_section(title, metric_keys, report, capital))
 
-    pass
-    
 
+# ---------------------------------------------------------------------
+# Section builders
+# ---------------------------------------------------------------------
+
+def _interval_label(interval_min: int) -> str:
+    seconds = interval_min * 60
+    return SECONDS_TO_PERIODS_24_7.get(seconds, ("1H", 365 * 24))[0]
+
+
+def _core_section(report: dict[str, float], config: BacktestConfig) -> pd.DataFrame:
+    data = config.data
+    start_ts = pd.Timestamp(data.start)
+    end_ts = pd.Timestamp(data.end)
+    interval_min = int(data.interval)
+    starting_capital = float(config.initial_capital)
+    net_return = report.get("net_return", 0.0)
+    final_capital = starting_capital * (1 + net_return)
+    n_bars = int((end_ts - start_ts).total_seconds() / (interval_min * 60))
+
+    return _make_df("Core", {
+        "Symbol": str(data.symbol),
+        "Interval": _interval_label(interval_min),
+        "Start": start_ts.strftime("%Y-%m-%d %H:%M"),
+        "End": end_ts.strftime("%Y-%m-%d %H:%M"),
+        "Duration": f"{(end_ts - start_ts).days + 1} days",
+        "Bars": str(n_bars),
+        "Starting Capital": _fmt_dollar(starting_capital),
+        "Final Capital": _fmt_dollar(final_capital),
+    })
+
+
+def _metric_section(
+    title: str,
+    keys: list[str],
+    report: dict[str, float],
+    capital: float,
+) -> pd.DataFrame:
+    rows = {
+        _DISPLAY_LABELS.get(key, key): _format_metric(key, report[key], capital)
+        for key in keys
+        if key in report
+    }
+    return _make_df(title, rows)
+
+
+def _make_df(title: str, data: dict[str, str]) -> pd.DataFrame:
+    df = pd.DataFrame(data.items(), columns=["Metric", "Value"]).set_index("Metric")
+    df.index.name = title
+    return df
 
 
 # ---------------------------------------------------------------------
