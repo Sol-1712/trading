@@ -1,10 +1,9 @@
-import numpy as np
 import pandas as pd
 from pathlib import Path
 import json
-from IPython.display import display
 
 from trading.backtester.portfolio import TradeLog
+from trading.data_utils.core import PROJECT_ROOT
 from .core_stats import CoreStats
 from .returns    import ReturnMetrics
 from .risk       import RiskMetrics
@@ -40,13 +39,18 @@ class PerformanceReport:
         with open(run_dir / "report.json", "w") as f:
             json.dump(self.summary(), f, indent=2)
 
-    def display_report(self, symbol: str | None) -> None:
-        """
-        Displays a formatted PerformanceReport in a Jupyter notebook.
 
-        Parameters
-        ----------
-        symbol : str | None
-            Optional asset symbol
-        """
+    def display_report(
+        self,
+        metrics: dict[str, float],
+        config: dict,           # parsed from config.yaml (or already in memory post-run)
+        starting_capital: float,
+        final_capital: float,
+    ) -> None:
         pass
+    
+    
+def load_report(run_dir: str | Path) -> dict[str, float]:
+    path = PROJECT_ROOT / "runs" / run_dir if isinstance(run_dir, str) else run_dir
+    with open(path / "report.json", "r") as f:
+        return json.load(f)

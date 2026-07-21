@@ -15,8 +15,8 @@ SECONDS_TO_PERIODS_24_7: dict[int, tuple[str, int]] = {
 
 METRICS = {
     "returns": [
-        "mean_bar_return","cagr", "net_return", "gross_return", "avg_win_loss", 
-         "skew", "kurtosis", "hit_rate_all", "median_bar_return", "avg_bar_win", "avg_bar_loss",
+        "mean_bar_return","cagr", "net_return", "gross_return", "skew",
+         "kurtosis", "hit_rate_all", "median_bar_return", "avg_bar_win", "avg_bar_loss",
          "avg_bar_win_loss_ratio", "largest_bar_return", "smallest_bar_return",
     ],
     "risk": [

@@ -6,8 +6,8 @@ run:
 data:
   symbol:   BTCUSDT
   interval: 60
-  start:    "2025-01-01"
-  end:      "2026-01-01"
+  start:    "2025-01-01" # "YYYY-MM-DD"
+  end:      "2026-01-01" # "YYYY-MM-DD"
 
 execution:
   fee_rate:             0.000550
