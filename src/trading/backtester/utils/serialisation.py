@@ -39,10 +39,3 @@ def serialize(obj):
 
     return obj
 
-
-def deserialize(data):
-    """
-    Recursively convert a serialized object back into its original type.
-    """
-    pass
-

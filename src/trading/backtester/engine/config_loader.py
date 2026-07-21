@@ -58,6 +58,10 @@ def load_config(
     if overrides:
         raw = _apply_overrides(raw, overrides)
 
+    return build_config(raw)
+
+
+def build_config(raw: dict) -> BacktestConfig:
     try:
         return BacktestConfig(
             run             = _build_run_config(raw["run"]),
@@ -70,7 +74,6 @@ def load_config(
         raise ValueError(f"Missing required config field: {e}") from e
     except (ValueError, TypeError):
         raise
-
 
 # ---------------------------------------------------------------------------
 # Section builders
@@ -141,7 +144,7 @@ def _build_execution_config(raw: dict) -> ExecutionConfig:
     return ExecutionConfig(
         fee_rate             = float(raw["fee_rate"]),
         delay_bars           = int(raw.get("delay_bars", 1)),
-        fill_model_cls       = _get_fill_model(raw.get("fill_model", "market")), 
+        fill_model           = raw.get("fill_model", "market"), 
         mtm_price_type       = PriceType(raw.get("mtm_price_type", 'mark'))
     )
     

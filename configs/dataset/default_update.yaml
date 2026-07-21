@@ -1,12 +1,11 @@
 symbols:
   - BTCUSDT
-  # - ETHUSDT
-  # - SOLUSDT
-  # - XRPUSDT
+  - ETHUSDT
+  - SOLUSDT
+  - XRPUSDT
 
-# intervals: [5, 15, 30, 60]
-intervals: [60]
+intervals: [5, 15, 30, 60]
 
-#start: "2022-01-01"
-start: "2025-01-01"
+start: "2022-01-01"
+
 # end omitted → fetches up to now

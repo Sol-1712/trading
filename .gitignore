@@ -20,6 +20,7 @@ WATCH.txt
 NEXT.md
 data_fix.txt
 testlab.ipynb
+temp.py
 
 # Agents
 .github/
@@ -34,5 +35,5 @@ data/
 *.csv
 *.h5
 
-# Logs
+# Run Directories
 runs/

@@ -3,13 +3,10 @@ import numpy as np
 from pathlib import Path
 import json
 
+from trading.backtester.engine import BacktestConfig
 from trading.backtester.portfolio import TradeLog
 from trading.data_utils.core import PROJECT_ROOT
-from .metrics import CoreStats
-from .metrics import ReturnMetrics
-from .metrics import RiskMetrics
-from .metrics import CostMetrics
-from .metrics import TradeMetrics
+from .metrics import CoreStats, ReturnMetrics, RiskMetrics, CostMetrics, TradeMetrics
 
 _SECTION_TITLES = {
     "returns": "Returns",
@@ -160,18 +157,17 @@ class PerformanceReport:
         with open(run_dir / "report.json", "w") as f:
             json.dump(self.summary(), f, indent=2)
 
+    def display(self, backtest_config: BacktestConfig) -> None:
+        display_report(self.summary(), backtest_config)
 
-    def display_report() -> None:
-        # Want to display from flat dict, backtest_config
-        # Build the core section and the metrics section
 
-        pass
+def display_report(report: dict[str, float], backtest_config: BacktestConfig) -> None:
+    # Want to display from flat dict, backtest_config
+    # Build the core section and the metrics section
+
+    pass
     
-    
-def load_report(run_dir: str | Path) -> dict[str, float]:
-    path = PROJECT_ROOT / "runs" / run_dir if isinstance(run_dir, str) else run_dir
-    with open(path / "report.json", "r") as f:
-        return json.load(f)
+
 
 
 # ---------------------------------------------------------------------

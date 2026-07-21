@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from trading.data_utils.core.config import DataConfig
 from trading.data_utils.core.enums import PriceType
 from trading.backtester.risk.config import RiskConfig
-from trading.backtester.fill import MarketFillModel
+from trading.backtester.fill import FILL_MODELS
 
 
 if TYPE_CHECKING:
@@ -26,12 +26,7 @@ class ExecutionConfig:
     """Execution simulation parameters only. No risk constraints."""
     fee_rate:       float
     delay_bars:     int       = 1
-    fill_model_cls:     type[FillModel] = field(
-        default=MarketFillModel,
-        hash=False,
-        compare=False,
-        repr=False,
-    )
+    fill_model:     str       = "market"
     mtm_price_type: PriceType = PriceType.MARK
 
     def __post_init__(self) -> None:
@@ -39,6 +34,10 @@ class ExecutionConfig:
             raise ValueError(f"fee_rate {self.fee_rate} out of range [0, 0.01]")
         if self.delay_bars < 1:
             raise ValueError(f"delay_bars must be >= 1, got {self.delay_bars}")
+        
+    @property
+    def fill_model_cls(self) -> type[FillModel]:
+        return FILL_MODELS[self.fill_model]
         
     @property
     def price_type(self) -> PriceType:

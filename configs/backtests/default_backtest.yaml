@@ -13,8 +13,8 @@ execution:
   fee_rate:             0.000550
   delay_bars:           1
   # Defaults:
-    # execution_price_type: last
-    # fill_model:     market (fills at last_open, delay_bars after signal)
+    # fill_model:           "market"
+    # mtm_price_type:       "mark"
 
 risk:
   leverage_max: 100.0
