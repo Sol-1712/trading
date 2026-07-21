@@ -1,8 +1,8 @@
 import numpy as np
 from functools import cached_property
 
-from .base import MetricsGroup
-from .utils import compute_sharpe
+from ..base import MetricsGroup
+from ..utils import compute_sharpe
 
 
 class CostMetrics(MetricsGroup):

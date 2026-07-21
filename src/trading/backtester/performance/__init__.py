@@ -1,10 +1,5 @@
 from .report import PerformanceReport, load_report
-from .core_stats import CoreStats
-from .returns import ReturnMetrics
-from .risk import RiskMetrics
-from .cost import CostMetrics
-from .trade import TradeMetrics
-
+from .metrics import CoreStats, ReturnMetrics, RiskMetrics, CostMetrics, TradeMetrics
  
 __all__ = [
     "PerformanceReport",

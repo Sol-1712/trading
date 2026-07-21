@@ -2,7 +2,7 @@
 
 from functools import cached_property
 
-from .core_stats import CoreStats
+from .metrics import CoreStats
 
 
 class MetricsGroup:
