@@ -13,18 +13,18 @@ logger = logging.getLogger(__name__)
 class ExecutionEngine(ABC):
     """
     Abstract execution engine for order processing and fill simulation.
-    
-    Manages order queuing, fill model integration, and state tracking across
-    the backtest. Concrete implementations (e.g., PerpDirectionalEngine)
-    handle strategy-specific order generation logic.
-    
-    Each backtest uses exactly one ExecutionEngine instance, selected based
-    on strategy type. The runner delegates all execution to this engine.
-    
+
+    Manages order queuing, fill-model integration, and execution-layer state
+    across the backtest. Concrete implementations (e.g. PerpDirectionalEngine)
+    handle strategy-specific order generation.
+
+    Each backtest uses exactly one ExecutionEngine instance. The runner
+    delegates all execution to this engine.
+
     Parameters
     ----------
     config : ExecutionConfig
-        Execution configuration including fees, delays, fill model, and limits.
+        Execution configuration including fees, delay_bars, and fill model.
     """
 
     def __init__(self, config: ExecutionConfig) -> None:
@@ -41,6 +41,14 @@ class ExecutionEngine(ABC):
 
     @property
     def price_type(self):
+        """
+        Price series required by the configured fill model.
+
+        Returns
+        -------
+        PriceType
+            Price type declared by the active fill model.
+        """
         return self._fill_model.price_type
 
     @abstractmethod
@@ -50,14 +58,15 @@ class ExecutionEngine(ABC):
                bar: pd.Series) -> None:
         """
         Submit a position target to the execution engine.
-        
-        Concrete implementations convert target to an Order and queue it.
-        May be delayed (delay_bars) before attempting execution.
-        
+
+        Concrete implementations convert the target into an Order and queue
+        it. Execution may be delayed by ``delay_bars``.
+
         Parameters
         ----------
         target_frac : float
-            Desired signed position fraction of equity (e.g., 0.5 = 50% long).
+            Desired signed position as a fraction of equity
+            (e.g. 0.5 = 50% long).
         state : PortfolioSnapshot
             Current portfolio state (used for position delta calculation).
         bar : pd.Series
@@ -68,22 +77,22 @@ class ExecutionEngine(ABC):
     @abstractmethod
     def execute_pending(self, bar: pd.Series, t: int) -> list[Fill]:
         """
-        Attempt to fill all pending orders against current bar.
-        
-        Delegates to fill model for each pending order. Removes fully filled
-        orders from queue. Returns all fills executed this bar.
-        
+        Attempt to fill all pending orders against the current bar.
+
+        Delegates to the fill model for each pending order. Fully filled
+        orders are removed from the active set.
+
         Parameters
         ----------
         bar : pd.Series
-            Current bar OHLC data and market information.
+            Current bar OHLC and market data.
         t : int
             Current bar index.
-            
+
         Returns
         -------
         list[Fill]
-            List of fills executed this bar (may be empty).
+            Fills executed this bar (may be empty).
         """
 
     def _cancel_all_pending(self) -> None:

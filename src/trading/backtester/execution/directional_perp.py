@@ -13,41 +13,17 @@ logger = logging.getLogger(__name__)
 
 class PerpDirectionalEngine(ExecutionEngine):
     """
-    Perpetual directional execution engine for single-asset / multi-asset backtesting.
+    Perpetual directional execution engine for bar-based backtests.
 
-    Inherits
-    --------
-    ExecutionEngine
-        Core execution infrastructure including:
-        - config (ExecutionConfig)
-        - fill model interface (MarketFillModel or custom)
-        - order queueing system
-        - pending order management state
-
-        Specifically inherited attributes:
-        - self.config
-        - self._fill_model
-        - self._queue (bar-indexed order queue)
-        - self._pending (actively processed orders)
-        - self._pending_fraction (execution state tracking)
-        - self._current_bar
-        - self._active
-
-    Extends
-    -------
-    This class implements perpetual-specific execution logic, including:
-    - order lifecycle management under continuous trading assumptions
-    - fill simulation for perp-style markets
-    - handling of partial fills
-    - conversion of strategy targets into executable orders
+    Converts signed target position fractions into notional Orders, queues
+    them with ``delay_bars``, and drives fill attempts via the configured
+    FillModel. Handles partial fills and cancels pending orders on
+    direction reversals.
 
     Notes
     -----
-    This engine assumes a time-discrete simulation model (bar-based),
-    but treats execution as continuous within each bar via a fill model.
-
-    State in this engine is strictly execution-layer state and does not
-    contain strategy or portfolio logic.
+    Simulation is discrete by bar; fill models decide intra-bar execution.
+    Engine state is execution-layer only — no strategy or portfolio logic.
     """
 
     _FRACTION_TOLERANCE: ClassVar[float] = 1e-9
@@ -63,25 +39,31 @@ class PerpDirectionalEngine(ExecutionEngine):
         price:           float,
     ) -> None:
         """
-        Convert target position to a concrete order and queue for execution.
-        
-        PRICE SEMANTICS:
-        - target_fraction is calculated using mark_close (MTM price)
-        - This represents desired exposure in mark value
-        - The order will execute at last_open (fill model price)
-        - This is intentional: target is mark-based, execution is at market
-        
-        Called at end of bar t. Attempt order fill at bar t + delay_bars.
+        Convert a target position into an Order and queue it for execution.
+
+        Computes the notional delta between ``target_fraction`` and the
+        position implied by current holdings plus pending notionals. On a
+        direction reversal, cancels pending orders and recomputes against
+        the flat current position. The order becomes eligible at
+        ``current_bar + delay_bars``.
+
+        Price semantics: ``target_fraction`` / sizing use the MTM price
+        passed as ``price``; the fill model later executes at its own
+        price series (e.g. last open).
 
         Parameters
         ----------
         target_fraction : float
-            Desired position as signed fraction of equity.
-            Received from position constructor + risk engine.
+            Desired signed position as a fraction of equity.
         state : PortfolioSnapshot
-            Current portfolio state. Provides equity and position_fraction.
+            Current portfolio state (equity and position_units).
         price : float
-            Execution price
+            MTM price used to convert units ↔ fraction of equity.
+
+        Raises
+        ------
+        ValueError
+            If ``target_fraction`` is non-finite.
         """
 
         if state.equity <= 0.0:
@@ -122,23 +104,24 @@ class PerpDirectionalEngine(ExecutionEngine):
 
     def execute_pending(self, bar: pd.Series , t: int) -> list[Fill]:
         """
-        Attempt fills on all pending orders due at or before bar t.
+        Attempt fills on all orders due at or before bar ``t``.
 
-        Called at the START of each timestep, before signal generation
-        and before submit(). Sets _current_bar so submit() knows
-        which bar it is operating on.
+        Sets ``_current_bar`` so subsequent ``submit`` calls know the
+        simulation index. Orders with ``exec_bar <= t`` move from the
+        queue into the active set (``<=`` so gaps do not silently drop
+        orders). Partial fills leave a residual Order active.
 
         Parameters
         ----------
         bar : pd.Series
-            Current bar's full OHLCV data. Passed directly to fill model.
+            Current bar data, passed through to the fill model.
         t : int
             Current bar index.
 
         Returns
         -------
         list[Fill]
-            All fills that occurred this bar. May be empty.
+            Fills that occurred this bar (may be empty).
         """
         self._current_bar = t
 
@@ -187,6 +170,12 @@ class PerpDirectionalEngine(ExecutionEngine):
 
 
     def _is_reversal(self, delta_fraction: float) -> bool:
+        """
+        Return True if ``delta_fraction`` opposes outstanding pending notional.
+
+        Used to decide whether to cancel pending orders before submitting
+        a new target that flips direction relative to in-flight exposure.
+        """
         if abs(self._pending_notional) <= self._FRACTION_TOLERANCE:
             return False
         # True if delta_fraction and _pending_notional point opposite directions

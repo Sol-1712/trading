@@ -9,13 +9,14 @@ from typing import cast
 
 class MarketFillModel(FillModel):
     """
-    Simplest possible fill model.
+    Immediate full-fill model at the execution bar open.
 
     Assumes:
-    - Orders fill immediately at the open of the execution bar
+    - Fills occur immediately at ``{price_type}_open`` on the bar
     - Always fully filled — no partial fills
-    - No slippage beyond what open price reflects
+    - No slippage beyond what the open price already reflects
 
+    Uses ``PriceType.LAST`` (last-trade open column).
     """
     price_type = PriceType.LAST
 
@@ -25,6 +26,29 @@ class MarketFillModel(FillModel):
 
 
     def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
+        """
+        Fill the entire order notional at the bar's last-trade open.
+
+        Parameters
+        ----------
+        order : Order
+            Order whose ``delta_notional`` is fully converted to units.
+        bar : pd.Series
+            Current bar; must include the model's open price column.
+
+        Returns
+        -------
+        Fill
+            Full fill at open, with fees ``abs(units) * fill_price * fee_rate``.
+
+        Raises
+        ------
+        KeyError
+            If the required open price column is missing from ``bar``.
+        ValueError
+            If fill price is non-positive or unit sign disagrees with
+            order notional.
+        """
 
         if self._open_col not in bar.index:
             raise KeyError(

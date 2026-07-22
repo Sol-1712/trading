@@ -14,10 +14,14 @@ logger = logging.getLogger(__name__)
 class FillModel(ABC):
     """
     Abstract interface for order fill simulation models.
-    
-    Implementations determine fill price, partial fill behavior, and execution
-    timing given an order and bar data. Can model slippage, partial fills,
-    and execution delays.
+
+    Implementations decide fill price, partial-fill behaviour, and whether
+    an order executes on a given bar (slippage, liquidity, delays, etc.).
+
+    Parameters
+    ----------
+    fee_rate : float
+        Proportional fee applied to filled notional; must be in ``[0, 1)``.
     """
 
     def __init__(self, fee_rate: float) -> None:
@@ -30,43 +34,42 @@ class FillModel(ABC):
     @abstractmethod
     def attempt_fill(self, order: Order, bar: pd.Series) -> Fill:
         """
-        Simulate execution of an order against current bar data.
-        
+        Simulate execution of an order against the current bar.
+
         Parameters
         ----------
         order : Order
-            Order to attempt execution on.
+            Order to attempt filling.
         bar : pd.Series
-            Current bar data (OHLC + market data).
-            
+            Current bar data (OHLC + market fields required by the model).
+
         Returns
         -------
         Fill
-            Fill result with actual units executed and fill price.
-            Units may be less than order amount for partial fills.
+            Fill result with units executed, fill price, and fees.
+            Units may be less than the remaining order notional for
+            partial fills.
         """
 
 
 @dataclass(frozen=True)
 class Fill:
     """
-    Executed fill record.
-    
-    Immutable record of a successful (or partial) order execution.
-    
+    Immutable record of a completed (or partial) order execution.
+
     Attributes
     ----------
     placed_at : datetime
-        Timestamp when order was placed.
+        Timestamp when the parent order was placed.
     filled_at : datetime
-        Timestamp when fill was executed.
+        Timestamp when this fill occurred.
     units_filled : float
-        Number of units actually filled. May be less than requested for
-        partial fills or orders that span multiple bars.
+        Signed units filled. Magnitude may be less than requested when
+        the fill is partial or spans multiple bars.
     fill_price : float
-        Execution price per unit (may include slippage).
+        Execution price per unit (may include modelled slippage).
     fees : float
-        Fees paid for the fill.
+        Fees charged for this fill.
     """
     placed_at:    datetime
     filled_at:    datetime
@@ -84,23 +87,22 @@ class Fill:
 @dataclass(frozen=True)
 class Order:
     """
-    Order submitted to execution engine.
-    
-    Immutable record representing a position target request.
-    Execution engine converts this to actual fills via fill model.
-    
+    Immutable order submitted to the execution engine.
+
+    Represents a signed notional delta to trade. The engine drives fills
+    via a FillModel until ``remaining_notional`` is exhausted.
+
     Attributes
     ----------
     placed_at : datetime
-        Timestamp when order was created.
+        Timestamp when the order was created.
     exec_bar : int
-        Bar index when execution should attempt (based on delay).
+        Bar index at which fill attempts become eligible (after delay).
     delta_notional : float
-        Signed notional amount in quote currency (fixed at submission).
+        Signed notional in quote currency fixed at submission.
         Positive = buy, negative = sell.
     remaining_notional : float
-        Remaining notional to fill. Decreases as order is partially filled
-        across multiple bars.
+        Notional still to fill; shrinks as partial fills accumulate.
     """
     placed_at:          datetime
     exec_bar:           int
