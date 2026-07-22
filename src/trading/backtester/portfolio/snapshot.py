@@ -9,36 +9,35 @@ class PortfolioSnapshot:
     """
     Immutable record of portfolio state at the end of a single bar.
 
-    Produced by Portfolio.step() and accumulated into the history DataFrame.
-    Using __slots__ reduces per-instance memory overhead, which matters
-    when storing tens of thousands of snapshots across long backtests.
+    Produced by ``Portfolio.step()`` and accumulated into the history
+    DataFrame. ``slots=True`` reduces per-instance memory for long runs.
 
-    Fields
-    ------
+    Attributes
+    ----------
     timestamp : datetime
         Bar timestamp (index key in the history DataFrame).
     price : float
-        Execution price used for this bar (already delay-adjusted by the engine).
-    position_fraction : float
-        Target position as a signed fraction of equity passed in this step.
-        +1.0 = fully long, -1.0 = fully short, 0.0 = flat.
+        Mark-to-market price used for this bar (fraction / leverage basis).
     position_units : float
-        Signed position held *after* any rebalancing on this bar.
+        Signed position held after fills on this bar.
+    position_fraction : float
+        Post-fill exposure ``(units * price) / equity``; 0.0 if equity ≤ 0.
+        +1.0 ≈ fully long, -1.0 ≈ fully short.
     equity : float
-        Portfolio equity at end of bar, after MTM PnL and fees.
+        Portfolio equity at end of bar after MTM, funding, and fees.
     position_pnl : float
-        Position PnL earned by the *previous* position over this bar's
-        price move. Realised before any rebalancing occurs.
+        Mark-to-market PnL on the position held into this bar
+        (close-to-close price move), before fills.
     funding_pnl : float
-        Funding pnl this bar. Negative = paid, positive = recieved
-    net_pnl : float
-        Total pnl on this bar. Calculated as position_pnl + funding_pnl - fee
-    leverage: float
-    
+        Funding cashflow this bar. Negative = paid, positive = received.
     fees : float
-        Fee paid this bar, charged on the notional of any position change.
+        Total fees paid this bar across fills.
+    net_pnl : float
+        ``position_pnl + funding_pnl - fees``.
+    leverage : float
+        Absolute position fraction ``abs(position_fraction)``.
     trade_occurred : bool
-        True if the position changed (|delta_units| > numerical tolerance).
+        True if at least one fill was applied this bar.
     """
 
     timestamp:         datetime

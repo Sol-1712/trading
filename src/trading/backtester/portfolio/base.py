@@ -19,42 +19,36 @@ class Portfolio:
     """
     Stateful bar-by-bar portfolio simulator.
 
-    Receives pre-sized target fractions from the execution engine
-    and handles all accounting: MTM, funding, fees, equity tracking.
+    Applies MTM, funding, and fill accounting each bar. Decoupled from
+    ExecutionConfig — takes only the scalar inputs it needs so it can be
+    used or tested independently.
 
-    Deliberately decoupled from ExecutionConfig — takes only the 
-    scalar values it needs so it can be used or tested independently.
     Parameters
     ----------
     initial_capital : float
-        Starting equity in quote currency (e.g. USDT).
-
-    Example
-    -------
-    >>> portfolio = Portfolio(initial_capital=10_000.0)
-    >>> snap = portfolio.step(timestamp=ts, price=50_000.0, target_fraction=0.5)
-    >>> df = portfolio.history()
+        Starting equity in quote currency (e.g. USDT). Must be positive.
+    max_leverage : float or None, optional
+        Optional hard leverage cap checked after fills. ``None`` disables.
     """
 
     _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
     def __init__(self, initial_capital: float, max_leverage: float | None = None) -> None:
         """
-        Initialize portfolio simulator.
-        
+        Initialize the portfolio simulator.
+
         Parameters
         ----------
         initial_capital : float
-            Starting equity in quote currency (e.g., USDT).
-            Must be positive.
-        max_leverage : float | None
+            Starting equity in quote currency (e.g. USDT). Must be positive.
+        max_leverage : float or None
             Maximum leverage allowed. If None, no leverage limit is applied.
-            Purely for a defensive check.
+            Purely a defensive check after fills.
 
         Raises
         ------
         ValueError
-            If initial_capital <= 0.
+            If ``initial_capital`` <= 0.
         """
         
         if initial_capital <= 0:
@@ -84,38 +78,40 @@ class Portfolio:
         funding_rate:    float
     ) -> PortfolioSnapshot:
         """
-        Advance portfolio by one bar.
-        
-        ORDER OF OPERATIONS:
-        1. MTM existing position using mark_close (bar's close price)
-        2. Apply funding based on position held at start of bar
-        3. Execute fills at execution prices (from fill model)
-        4. Record snapshot at mark_close (for position fraction calc)
-        
-        PRICE BASIS:
-        - position_pnl: uses mark_close (MTM)
-        - position_fraction: uses mark_close (MTM for leverage calc)
-        - fills: use their own fill_price (from execution model)
-        
-        This separation is intentional:
-        - MTM uses mark (index price, more accurate)
-        - Execution uses last (market price, realistic)
+        Advance the portfolio by one bar.
+
+        Order of operations:
+        1. MTM existing position at ``mtm_price`` (close-to-close)
+        2. Apply funding on the position held at the start of the bar
+        3. Apply fills (fees + unit changes) from the execution engine
+        4. Record a snapshot and update the last MTM price
+
+        Price basis: position PnL and position_fraction use ``mtm_price``;
+        fills use each fill's own ``fill_price``.
 
         Parameters
         ----------
         timestamp : pd.Timestamp
             Timestamp of the current bar.
         fills : list[Fill]
-            Fills from execute_pending. Empty list if no fills this bar.
+            Fills from ``execute_pending``; empty if none this bar.
         mtm_price : float
-            Mark-to-market price for the current bar.
+            Mark-to-market price for this bar.
         funding_rate : float
-            Funding rate for the current bar. Positive means long pays short.
+            Funding rate for this bar. Positive means longs pay shorts.
 
         Returns
         -------
         PortfolioSnapshot
-            Immutable record of state after this bar.
+            Immutable end-of-bar state record.
+
+        Raises
+        ------
+        ValueError
+            If ``mtm_price`` is out of range or ``funding_rate`` is non-finite.
+        RuntimeError
+            If portfolio units disagree with TradeLog, state becomes NaN,
+            or implied leverage exceeds ``max_leverage``.
         """
 
             
@@ -213,26 +209,34 @@ class Portfolio:
 
     @property
     def equity(self) -> float:
-        """Current portfolio equity (quote currency)."""
+        """Current portfolio equity in quote currency."""
         return self._equity
 
     @property
     def position_units(self) -> float:
-        """Current signed position in base asset units."""
+        """Current signed position in base-asset units."""
         return self._position_units
    
 
     @property
     def initial_capital(self) -> float:
+        """Starting equity set at construction."""
         return self._initial_capital
 
     @property
     def n_bars(self) -> int:
-        """Number of bars processed."""
+        """Number of bars processed (snapshots recorded)."""
         return len(self._snapshots)
 
     def is_flat(self) -> bool:
-        """True if the portfolio currently holds no position."""
+        """
+        Return True if the portfolio holds no meaningful position.
+
+        Returns
+        -------
+        bool
+            True when ``|position_units|`` is within ``_UNITS_TOLERANCE``.
+        """
         return abs(self._position_units) <= self._UNITS_TOLERANCE
 
     # ------------------------------------------------------------------ #
@@ -242,15 +246,14 @@ class Portfolio:
     def history(self) -> pd.DataFrame:
         """
         Convert accumulated snapshots to a DataFrame indexed by timestamp.
-        
-        Called once after all bars are processed. Suitable for metrics computation
-        and performance analysis.
-        
+
+        Intended to be called once after the run for metrics and reporting.
+
         Returns
         -------
         pd.DataFrame
-            Portfolio state history with columns from PortfolioSnapshot fields
-            and timestamp as index. Empty DataFrame if no snapshots recorded.
+            One row per bar with PortfolioSnapshot fields; empty if no
+            snapshots have been recorded.
         """
         if not self._snapshots:
             logger.warning("Portfolio has no snapshot history")
@@ -269,11 +272,11 @@ class Portfolio:
 
     def reset(self) -> None:
         """
-        Reset portfolio to its initial state.
-        
-        Clears all snapshots and position state. Useful for parameter sweeps or
-        walk-forward loops where the same Portfolio object is reused.
-        Maintains original capital and fee configuration.
+        Reset portfolio to its initial cash / flat state.
+
+        Clears snapshots, position, and last price. Reuses the original
+        ``initial_capital`` and ``max_leverage``. Useful for parameter
+        sweeps or walk-forward loops that reuse the same instance.
         """
         self._equity         = self.initial_capital
         self._position_units = 0.0
@@ -288,19 +291,22 @@ class Portfolio:
 
     def _fraction_to_units(self, fraction: float, price: float) -> float:
         """
-        Convert a signed position fraction to signed asset units.
+        Convert a signed position fraction of equity into asset units.
 
-        Units = sign(fraction) x |equity x fraction| / price
-
-        If equity is zero or negative (portfolio is ruined), returns 0
-        rather than attempting further positioning.
+        ``units = sign(fraction) * |equity * fraction| / price``.
+        Returns 0 if equity is zero or negative (ruined).
 
         Parameters
         ----------
         fraction : float
-            Signed target fraction of equity. ±1.0 = ±100% notional.
+            Signed target fraction of equity (±1.0 = ±100% notional).
         price : float
-            Current asset price (quote currency per unit).
+            Asset price in quote currency per unit.
+
+        Returns
+        -------
+        float
+            Signed base-asset units, or 0.0 if ruined.
         """
         if self._equity <= 0.0:
             return 0.0  # Ruined
