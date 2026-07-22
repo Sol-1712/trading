@@ -19,29 +19,31 @@ def load_config(
     overrides: dict[str, Any] | None = None,
 ) -> BacktestConfig:
     """
-    Load and parse backtest configuration from YAML file.
-    
-    Merges file-based config with optional dotted-key overrides.
-    Validates all required fields are present and valid.
-    
+    Load and parse backtest configuration from a YAML file.
+
+    Merges file-based config with optional dotted-key overrides, then
+    builds a validated BacktestConfig via build_config.
+
     Parameters
     ----------
-    file : str, default "default_update.yaml"
-        Configuration filename (relative to DEFAULT_PATH).
-    overrides : dict[str, Any] | None
-        Optional key-value overrides using dot notation for nested fields.
-        
+    file : str or Path, default "default_backtest.yaml"
+        Configuration filename relative to CONFIGS_ROOT / 'backtests',
+        or an absolute Path to the YAML file.
+    overrides : dict[str, Any] or None
+        Optional key-value overrides using dot notation for nested
+        fields (e.g. ``"data.symbol"``).
+
     Returns
     -------
     BacktestConfig
         Complete validated backtest configuration.
-        
+
     Raises
     ------
     FileNotFoundError
-        If config file not found at DEFAULT_PATH / file.
+        If the config file does not exist.
     ValueError
-        If YAML is malformed or required fields are missing.
+        If YAML is empty/invalid or required fields are missing.
     """
 
     path = CONFIGS_ROOT / 'backtests' / file if isinstance(file, str) else file
@@ -62,6 +64,29 @@ def load_config(
 
 
 def build_config(raw: dict) -> BacktestConfig:
+    """
+    Build BacktestConfig from a raw configuration dictionary.
+
+    Assembles run, data, execution, and risk sub-configs plus
+    initial_capital from the corresponding top-level keys.
+
+    Parameters
+    ----------
+    raw : dict
+        Raw configuration with keys: run, data, execution, risk,
+        initial_capital.
+
+    Returns
+    -------
+    BacktestConfig
+        Validated composite backtest configuration.
+
+    Raises
+    ------
+    ValueError
+        If a required top-level field is missing or a sub-config
+        value is invalid.
+    """
     try:
         return BacktestConfig(
             run             = _build_run_config(raw["run"]),
@@ -121,12 +146,13 @@ def _build_data_config(raw: dict) -> DataConfig:
 def _build_execution_config(raw: dict) -> ExecutionConfig:
     """
     Build ExecutionConfig from raw config dict.
-    
+
     Parameters
     ----------
     raw : dict
-        Raw configuration with required fee_rate and optional other fields.
-        
+        Raw configuration with required ``fee_rate`` and optional
+        delay_bars, fill_model, and mtm_price_type.
+
     Returns
     -------
     ExecutionConfig
@@ -135,8 +161,7 @@ def _build_execution_config(raw: dict) -> ExecutionConfig:
     Raises
     ------
     ValueError
-        If fee_rate is missing
-        
+        If fee_rate is missing.
     """
     if "fee_rate" not in raw:
         raise ValueError("Missing required field in [execution] config: fee_rate")

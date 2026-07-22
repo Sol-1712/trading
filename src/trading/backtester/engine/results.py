@@ -22,13 +22,14 @@ class BacktestResults:
     ----------
     signals : list[Signal]
         Signal objects or None entries for each bar (length = len(data)).
-    targets : list[float]
-        Target position fractions output by position sizer (length = len(data)).
+    targets : list[float | None]
+        Target position fractions from the position sizer / risk step
+        (length = len(data)); None means no action that bar.
     trade_log : TradeLog
-        Trade log object containing open and closed trades.
+        Trade log containing open and closed trades.
     portfolio_history : pd.DataFrame
-        Portfolio state snapshots indexed by timestamp with columns: equity,
-        position_units, position_pnl, funding_pnl, fees, leverage, etc.
+        Portfolio state snapshots indexed by timestamp with columns such as
+        equity, position_units, position_pnl, funding_pnl, fees, leverage.
     """
     signals:              list[Signal]
     targets:              list[float | None]
@@ -50,6 +51,17 @@ class BacktestResults:
 
     
     def save(self, run_dir: Path) -> None:
+        """
+        Persist portfolio history and closed trades to ``run_dir``.
+
+        Writes ``portfolio_history.parquet`` and ``trades.parquet``.
+        Signals are not saved.
+
+        Parameters
+        ----------
+        run_dir : Path
+            Destination directory for result artifacts.
+        """
         self.portfolio_history.to_parquet(run_dir / "portfolio_history.parquet")
 
         trades_df = pd.DataFrame([

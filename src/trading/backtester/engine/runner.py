@@ -325,21 +325,24 @@ class BacktestRunner:
             target: float | None,
             state: PortfolioSnapshot) -> float | None:
         """
-        Apply risk adjustments to target position.
-        
-        Currently a passthrough (no risk limits). Designed as integration point
-        for future RiskEngine that may reduce, block, or adjust position targets.
-        
+        Apply risk adjustments to a target position.
+
+        Currently a passthrough (no risk limits). Designed as the integration
+        point for a future RiskEngine that may reduce, block, or adjust targets.
+
         Parameters
         ----------
-        target : float
-            Raw target position from position sizer as fraction of equity.
-            
+        target : float or None
+            Raw target position from the position sizer as a fraction of
+            equity. None means no sizing action.
+        state : PortfolioSnapshot
+            Current portfolio state available for risk checks.
+
         Returns
         -------
-        float | None
-            Risk-adjusted target position. May differ from input if risk engine
-            is active. Returns None if position should be skipped.
+        float or None
+            Risk-adjusted target. May differ from ``target`` once a risk
+            engine is wired; None skips submitting an order.
         """
         return target
     
