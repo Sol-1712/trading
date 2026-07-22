@@ -207,25 +207,21 @@ class BybitFetcher:
         """
         Fetch multiple kline price types concurrently for a single symbol.
 
-        Threading model
-        ---------------
         last/mark/index klines are separate API endpoints with no shared
-        state, so they can be fetched in parallel.
-
-        Why as_completed() rather than pool.map()?
-        pool.map() raises on the first exception and silently drops results
-        from other futures. as_completed() yields each Future as it finishes
-        (in completion order, not submission order) and lets us handle each
-        result or exception independently — which is why a failed fetch returns
-        an empty DataFrame rather than killing the whole call.
-
-        The dict {future: pt} pattern is the standard way to recover which
-        argument was associated with each Future after it completes.
-        as_completed() yields Future objects; without this dict you cannot tell
-        which price_type each result belongs to.
+        state, so they are fetched in parallel via ``ThreadPoolExecutor``.
+        Failed fetches return an empty DataFrame under their key rather
+        than aborting the whole call.
 
         Parameters
         ----------
+        symbol : str
+            Instrument symbol, e.g. ``"BTCUSDT"``.
+        interval : int
+            Bar interval in minutes.
+        start : int
+            Start timestamp in milliseconds (inclusive).
+        end : int, optional
+            End timestamp in milliseconds. Defaults to server time.
         price_types : list[PriceType], optional
             Subset of price types to fetch. Defaults to all three.
 
@@ -281,10 +277,19 @@ class BybitFetcher:
     ) -> dict[str, pd.DataFrame]:
         """
         Fetch klines for multiple symbols concurrently.
+
+        Parameters
         ----------
         symbols : list[str]
+            Instrument symbols to fetch.
+        interval : int
+            Bar interval in minutes.
         price_type : PriceType
             Price type to fetch for all symbols.
+        start : int
+            Start timestamp in milliseconds (inclusive).
+        end : int, optional
+            End timestamp in milliseconds. Defaults to server time.
 
         Returns
         -------
@@ -335,8 +340,9 @@ class BybitFetcher:
         Parameters
         ----------
         symbol : str
+            Instrument symbol, e.g. ``"BTCUSDT"``.
         start : int
-            Start timestamp in milliseconds.
+            Start timestamp in milliseconds (inclusive).
         end : int, optional
             End timestamp in milliseconds. Defaults to server time.
 

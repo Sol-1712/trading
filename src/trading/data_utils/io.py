@@ -127,18 +127,19 @@ def _write_partition(
 # ---------------------------------------------------------------------------
 def get_stored_range(path: str | Path) -> tuple[pd.Timestamp, pd.Timestamp] | None:
     """
-    Returns the timestamp range stored in a partitioned dataset,
+    Return the timestamp range stored in a partitioned dataset,
     or None if no data exists yet.
-    
+
     Parameters
     ----------
     path : str | Path
         Root directory of the partitioned dataset.
-    
+
     Returns
     -------
     tuple[pd.Timestamp, pd.Timestamp] | None
-        (min_timestamp, max_timestamp) in the dataset, or None if no data exists.
+        ``(min_timestamp, max_timestamp)`` in the dataset, or ``None``
+        if no data exists.
     """
 
     path = Path(path)
@@ -333,13 +334,13 @@ def _load_partitions_parallel(
 ) -> list[pd.DataFrame]:
     """
     Load a list of parquet files in parallel.
-    
+
     Raises
     ------
-    RunTimeError
+    RuntimeError
         If any partition fails to load.
     ValueError
-        If Datetime index is missing or not UTC.
+        If a DatetimeIndex is missing or not UTC.
     """
 
     dfs: list[pd.DataFrame] = []

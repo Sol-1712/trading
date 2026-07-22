@@ -9,15 +9,37 @@ BYBIT_VALID_INTERVALS: frozenset[int] = frozenset({1, 3, 5, 15, 30, 60, 120, 240
 
 @dataclass(frozen=True)
 class KlineSchema:
-    raw_cols:     tuple[str, ...]   # column order matches Bybit API response
-    numeric_cols: tuple[str, ...]   # subset to cast to float64
+    """
+    Column layout for a Bybit kline API response.
+
+    Parameters
+    ----------
+    raw_cols : tuple[str, ...]
+        Column names in the order returned by the Bybit API.
+    numeric_cols : tuple[str, ...]
+        Subset of ``raw_cols`` to cast to ``float64`` after fetch.
+    """
+    raw_cols:     tuple[str, ...]
+    numeric_cols: tuple[str, ...]
 
 
 @dataclass(frozen=True)
 class FundingSchema:
-    raw_cols:     tuple[str, ...]   # Bybit camelCase field names
-    rename_map:   dict[str, str]    # raw → clean column names
-    numeric_cols: tuple[str, ...]   # columns to cast to float64
+    """
+    Column layout for a Bybit funding-rate API response.
+
+    Parameters
+    ----------
+    raw_cols : tuple[str, ...]
+        Bybit camelCase field names to select from the response.
+    rename_map : dict[str, str]
+        Mapping from raw camelCase names to snake_case column names.
+    numeric_cols : tuple[str, ...]
+        Columns to cast to ``float64`` after rename.
+    """
+    raw_cols:     tuple[str, ...]
+    rename_map:   dict[str, str]
+    numeric_cols: tuple[str, ...]
 
 
 KLINE_SCHEMAS: dict[PriceType, KlineSchema] = {

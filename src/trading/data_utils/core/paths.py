@@ -114,7 +114,7 @@ def list_available_symbols(
     Parameters
     ----------
     exchange : str
-        Exchange name.
+        Exchange name. Default: ``"bybit"``.
 
     Returns
     -------
@@ -138,8 +138,11 @@ def list_available_intervals(
     Parameters
     ----------
     symbol : str
+        Instrument symbol, e.g. ``"BTCUSDT"``.
     price_type : PriceType
+        Price series directory to inspect (``last`` / ``mark`` / ``index``).
     exchange : str
+        Exchange name. Default: ``"bybit"``.
 
     Returns
     -------

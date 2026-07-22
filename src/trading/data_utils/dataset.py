@@ -17,6 +17,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class UpdateConfig:
+    """
+    Immutable specification for a multi-symbol dataset update run.
+
+    Parameters
+    ----------
+    symbols : tuple[str, ...]
+        Instruments to update, e.g. ``("BTCUSDT", "ETHUSDT")``.
+    intervals : tuple[int, ...]
+        Bar intervals in minutes to update for each symbol.
+    start : int
+        Earliest timestamp to fetch, in milliseconds (UTC).
+    end : int, optional
+        Latest timestamp to fetch, in milliseconds (UTC).
+        ``None`` means fetch up to current server time.
+    """
     symbols:   tuple[str, ...]
     intervals: tuple[int, ...]
     start:     int               # ms
@@ -24,7 +39,29 @@ class UpdateConfig:
 
 
 def load_update_config(file: str | Path= "data_update.yaml") -> dict:
+    """
+    Load a dataset-update YAML and convert date fields to millisecond timestamps.
 
+    Parameters
+    ----------
+    file : str | Path, default "data_update.yaml"
+        Config filename relative to ``CONFIGS_ROOT / "dataset"``, or an
+        absolute path.
+
+    Returns
+    -------
+    dict
+        Keys: ``symbols``, ``intervals``, ``start``, ``end``.
+        ``start`` / ``end`` are UTC millisecond timestamps; ``end`` is
+        ``None`` when omitted from the YAML.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the config file does not exist.
+    KeyError
+        If required YAML fields are missing.
+    """
     config_path = CONFIGS_ROOT / 'dataset' / file if isinstance(file, str) else file
 
     if not config_path.exists():
@@ -54,6 +91,27 @@ def update_klines(
     start:     int,
     end:       int | None = None,
 ) -> None:
+    """
+    Fetch and persist kline partitions for every interval and price type.
+
+    For each ``(interval, PriceType)`` pair, resolves the missing range
+    against on-disk data, fetches only that gap, validates coverage, and
+    merges into the partitioned parquet store.
+
+    Parameters
+    ----------
+    fetcher : BybitFetcher
+        Authenticated Bybit fetch client.
+    symbol : str
+        Instrument symbol, e.g. ``"BTCUSDT"``.
+    intervals : list[int]
+        Bar intervals in minutes to update.
+    start : int
+        Earliest timestamp to cover, in milliseconds (UTC).
+    end : int, optional
+        Latest timestamp to cover, in milliseconds (UTC).
+        ``None`` means fetch up to current server time.
+    """
     for interval in intervals:
         for pt in PriceType:
             path = make_data_path(
@@ -104,7 +162,25 @@ def update_funding(
     start:   int,
     end:     int | None = None,
 ) -> None:
-    
+    """
+    Fetch and persist funding-rate history for a symbol.
+
+    Skips the fetch when stored data is already current relative to server
+    time. Otherwise backfills earlier history or forward-fills from the
+    last stored funding event (8h spacing).
+
+    Parameters
+    ----------
+    fetcher : BybitFetcher
+        Authenticated Bybit fetch client.
+    symbol : str
+        Instrument symbol, e.g. ``"BTCUSDT"``.
+    start : int
+        Earliest timestamp to cover, in milliseconds (UTC).
+    end : int, optional
+        Latest timestamp to cover, in milliseconds (UTC).
+        ``None`` means fetch up to current server time.
+    """
     funding_path = make_data_path(symbol, data_type=DataType.FUNDING)
     stored       = get_stored_range(funding_path)
 
@@ -161,11 +237,26 @@ def _resolve_fetch_range(
     """
     Determine the fetch range for a dataset given its stored range.
 
+    Backfills when ``start`` is earlier than stored data; forward-fills
+    when ``end`` extends past stored data. Returns ``(None, None)`` when
+    the requested window is already fully covered.
+
+    Parameters
+    ----------
+    path : Path
+        Root directory of the partitioned dataset.
+    start : int
+        Requested start timestamp in milliseconds.
+    end : int | None
+        Requested end timestamp in milliseconds, or ``None`` for open-ended.
+    interval : int
+        Bar interval in minutes — used to step one bar past stored bounds.
+
     Returns
     -------
     tuple[int | None, int | None]
-        (fetch_start, fetch_end) in milliseconds.
-        Returns (None, None) if no fetch is needed.
+        ``(fetch_start, fetch_end)`` in milliseconds.
+        ``(None, None)`` if no fetch is needed.
     """
     stored = get_stored_range(path)
 
@@ -204,7 +295,24 @@ def _validate_fetch_coverage(
 ) -> None:
     """
     Warn if fetched data doesn't cover the expected range.
-    Distinguishes API gaps from genuine data unavailability.
+
+    Distinguishes API gaps from genuine data unavailability using a
+    two-bar tolerance around the requested window.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Fetched klines with a UTC DatetimeIndex.
+    start_ms : int
+        Requested start timestamp in milliseconds.
+    end_ms : int | None
+        Requested end timestamp in milliseconds, or ``None`` if open-ended.
+    symbol : str
+        Instrument symbol — used in the warning message only.
+    pt : PriceType
+        Price type — used in the warning message only.
+    interval : int
+        Bar interval in minutes — sets the coverage tolerance.
     """
     actual_start = int(df.index[0].timestamp()  * 1000)
     actual_end   = int(df.index[-1].timestamp() * 1000)
