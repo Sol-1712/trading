@@ -260,13 +260,3 @@ def _apply_overrides(raw: dict, overrides: dict[str, Any]) -> dict:
             result[key] = value
 
     return result
-
-
-def _get_fill_model(name: str) -> type[FillModel]:
-    try:
-        return FILL_MODELS[name]
-    except KeyError:
-        raise ValueError(
-            f"Unknown fill model '{name}'. "
-            f"Available: {list(FILL_MODELS)}"
-        )
