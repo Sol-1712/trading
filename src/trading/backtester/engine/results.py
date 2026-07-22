@@ -29,7 +29,7 @@ class BacktestResults:
         Trade log containing open and closed trades.
     portfolio_history : pd.DataFrame
         Portfolio state snapshots indexed by timestamp with columns such as
-        equity, position_units, position_pnl, funding_pnl, fees, leverage.
+        equity, position_units, position_pnl, funding_pnl, fees.
     """
     signals:              list[Signal]
     targets:              list[float | None]

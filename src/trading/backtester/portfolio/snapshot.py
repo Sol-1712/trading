@@ -17,7 +17,7 @@ class PortfolioSnapshot:
     timestamp : datetime
         Bar timestamp (index key in the history DataFrame).
     price : float
-        Mark-to-market price used for this bar (fraction / leverage basis).
+        Mark-to-market price used for this bar (fraction basis).
     position_units : float
         Signed position held after fills on this bar.
     position_fraction : float
@@ -34,14 +34,12 @@ class PortfolioSnapshot:
         Total fees paid this bar across fills.
     net_pnl : float
         ``position_pnl + funding_pnl - fees``.
-    leverage : float
-        Absolute position fraction ``abs(position_fraction)``.
     trade_occurred : bool
         True if at least one fill was applied this bar.
     """
 
     timestamp:         datetime
-    price:             float     # bar close — used for fraction/leverage calculation
+    price:             float     # bar close — used for fraction calculation
     position_units:    float     # post-fill
     position_fraction: float     # post-fill: (units × price) / equity
     equity:            float     # post-fill
@@ -49,5 +47,4 @@ class PortfolioSnapshot:
     funding_pnl:       float     # funding payment (negative = paid, positive = received)
     fees:              float     # total fees paid this bar
     net_pnl:           float     # position_pnl + funding_pnl - fee
-    leverage:          float     # abs(position_fraction)
     trade_occurred:    bool

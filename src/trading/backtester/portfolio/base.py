@@ -27,13 +27,11 @@ class Portfolio:
     ----------
     initial_capital : float
         Starting equity in quote currency (e.g. USDT). Must be positive.
-    max_leverage : float or None, optional
-        Optional hard leverage cap checked after fills. ``None`` disables.
     """
 
     _UNITS_TOLERANCE: ClassVar[float] = 1e-9  # below which delta is treated as zero
 
-    def __init__(self, initial_capital: float, max_leverage: float | None = None) -> None:
+    def __init__(self, initial_capital: float) -> None:
         """
         Initialize the portfolio simulator.
 
@@ -41,9 +39,6 @@ class Portfolio:
         ----------
         initial_capital : float
             Starting equity in quote currency (e.g. USDT). Must be positive.
-        max_leverage : float or None
-            Maximum leverage allowed. If None, no leverage limit is applied.
-            Purely a defensive check after fills.
 
         Raises
         ------
@@ -60,7 +55,6 @@ class Portfolio:
         self._position_units:  float                   = 0.0
         self._last_price:      float | None            = None
         self._snapshots:       list[PortfolioSnapshot] = []
-        self._max_leverage:    float | None            = max_leverage 
         
         logger = logging.getLogger(__name__)
         logger.debug("Portfolio initialized: capital=%.2f", 
@@ -111,7 +105,6 @@ class Portfolio:
             If ``mtm_price`` is out of range or ``funding_rate`` is non-finite.
         RuntimeError
             If portfolio units disagree with TradeLog, state becomes NaN,
-            or implied leverage exceeds ``max_leverage``.
         """
 
             
@@ -168,15 +161,6 @@ class Portfolio:
                 f"position_units={self._position_units}, equity={self._equity}"
         )
 
-        if self._equity > 0 and self._max_leverage is not None:
-            implied_leverage = abs(self._position_units * mtm_price / self._equity)
-            if implied_leverage > self._max_leverage:
-                raise RuntimeError(
-                    f"Leverage {implied_leverage:.2f}x exceeds hard cap "
-                    f"{self._max_leverage:.2f}x at {timestamp}. "
-                    f"position_units={self._position_units}, equity={self._equity}"
-                )
-
         # ── 5. Update price reference ────────────────────────────────────
         self._last_price = mtm_price
 
@@ -195,7 +179,6 @@ class Portfolio:
             funding_pnl       = funding_pnl,
             fees              = total_fee,
             net_pnl           = position_pnl + funding_pnl - total_fee,
-            leverage          = abs(position_fraction),
             trade_occurred    = len(fills) > 0,
         )
 
@@ -270,12 +253,15 @@ class Portfolio:
     # Lifecycle                                                             #
     # ------------------------------------------------------------------ #
 
+    def is_ruined(self) -> None:
+        pass    
+
     def reset(self) -> None:
         """
         Reset portfolio to its initial cash / flat state.
 
         Clears snapshots, position, and last price. Reuses the original
-        ``initial_capital`` and ``max_leverage``. Useful for parameter
+        ``initial_capital``. Useful for parameter sweeps or walk-forward loops
         sweeps or walk-forward loops that reuse the same instance.
         """
         self._equity         = self.initial_capital

@@ -27,7 +27,7 @@ class CoreStats:
     REQUIRED_COLS = (
         "equity", "position_units", "position_fraction",
         "position_pnl", "funding_pnl", "fees", "net_pnl",
-        "leverage", "trade_occurred",
+        "trade_occurred",
     )
 
     def __init__(self, portfolio_history: pd.DataFrame, rf: float = 0.0):
@@ -42,7 +42,6 @@ class CoreStats:
         self.equity             = df["equity"].to_numpy()
         self.position_units     = df["position_units"].to_numpy()
         self.position_fraction  = df["position_fraction"].to_numpy()
-        self.leverage           = df["leverage"].to_numpy()
         self.position_pnl       = df["position_pnl"].to_numpy()
         self.funding_pnl        = df["funding_pnl"].to_numpy()
         self.fees               = df["fees"].to_numpy()
