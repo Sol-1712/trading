@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -109,8 +110,8 @@ def _write_partition(
 
         _validate_partition(to_write, year, month)
         to_write.to_parquet(tmp_path)
-        # Atomic rename — only replaces file_path if write succeeded
-        tmp_path.rename(file_path)
+        # Atomic replace — works on Windows even when file_path already exists
+        os.replace(tmp_path, file_path)
 
     except Exception:
         # Clean up temp file on any failure
