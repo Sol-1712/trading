@@ -133,6 +133,57 @@ class BybitFetcher:
                 f"API nulls must not be persisted as NaN."
             )
 
+    @staticmethod
+    def _validate_ohlc(df: pd.DataFrame, *, symbol: str) -> None:
+        """Raise if OHLC relationships or positivity invariants are violated."""
+        o, h, l, c = df["open"], df["high"], df["low"], df["close"]
+        invalid = (
+            (h < l)
+            | (h < o)
+            | (h < c)
+            | (l > o)
+            | (l > c)
+            | (o <= 0)
+            | (h <= 0)
+            | (l <= 0)
+            | (c <= 0)
+        )
+        if invalid.any():
+            n_bad = int(invalid.sum())
+            sample = df.loc[invalid, ["open", "high", "low", "close"]].head(3)
+            raise ValueError(
+                f"Invalid OHLC for {symbol}: {n_bad} row(s) violate "
+                f"high/low/open/close invariants or non-positivity. "
+                f"Sample:\n{sample}"
+            )
+
+    @staticmethod
+    def _drop_open_candle(
+        df: pd.DataFrame,
+        interval_minutes: int,
+        as_of: pd.Timestamp,
+    ) -> pd.DataFrame:
+        """
+        Drop the most recent bar if it has not fully closed yet.
+
+        A bar opening at ``t`` closes at ``t + interval``. Only bars whose
+        close time is at or before ``as_of`` (fetch time) are persisted.
+        """
+        if df.empty:
+            return df
+
+        last_open = df.index[-1]
+        close_time = last_open + pd.Timedelta(minutes=interval_minutes)
+        if close_time > as_of:
+            logger.info(
+                "Dropping in-progress candle at %s (closes %s; as_of %s).",
+                last_open,
+                close_time,
+                as_of,
+            )
+            return df.iloc[:-1]
+        return df
+
     # ------------------------------------------------------------------
     # Kline fetching
     # ------------------------------------------------------------------
@@ -166,6 +217,8 @@ class BybitFetcher:
         pd.DataFrame
             UTC DatetimeIndex. Columns: ``open, high, low, close``
             (plus ``volume, turnover`` for ``"last"``). All float64.
+            Only fully closed bars are returned — an in-progress candle
+            at the end of the range is dropped.
         """
         schema = KLINE_SCHEMAS[price_type]
         raw_cols = schema.raw_cols
@@ -173,6 +226,7 @@ class BybitFetcher:
         api_method = self._get_kline_api_method(price_type)
         end = self._resolve_end(end)
         symbol = symbol.upper()
+        n_fields = len(raw_cols)
 
         def call_fn(s: int, e: int) -> pd.DataFrame:
             response = api_method(
@@ -186,6 +240,13 @@ class BybitFetcher:
             data = response["result"]["list"]
             if not data:
                 return pd.DataFrame(columns=raw_cols)
+            for i, row in enumerate(data):
+                if len(row) != n_fields:
+                    raise ValueError(
+                        f"Unexpected kline row length for {symbol}: "
+                        f"row {i} has {len(row)} fields, expected {n_fields} "
+                        f"{raw_cols}."
+                    )
             return pd.DataFrame(data, columns=raw_cols)
 
         logger.info(
@@ -212,7 +273,11 @@ class BybitFetcher:
 
         raw[numeric_cols] = raw[numeric_cols].astype("float64")
         self._reject_null_numerics(raw, numeric_cols, symbol=symbol, context=f"{price_type.value} klines")
-        return self._to_datetime_index(raw)
+        self._validate_ohlc(raw, symbol=symbol)
+
+        result = self._to_datetime_index(raw)
+        as_of = pd.Timestamp(self._server_time_ms(), unit="ms", tz="UTC")
+        return self._drop_open_candle(result, interval, as_of)
 
 
     def fetch_all_kline_types(
