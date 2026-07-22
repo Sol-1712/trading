@@ -115,6 +115,24 @@ class BybitFetcher:
         df.index.name = "datetime"
         return df.drop(columns=[timestamp_col]).sort_index()
 
+    @staticmethod
+    def _reject_null_numerics(
+        df: pd.DataFrame,
+        numeric_cols: list[str],
+        *,
+        symbol: str,
+        context: str,
+    ) -> None:
+        """Raise if any numeric column contains NaN after casting."""
+        null_counts = df[numeric_cols].isna().sum()
+        bad = null_counts[null_counts > 0]
+        if not bad.empty:
+            details = ", ".join(f"{col}={int(n)}" for col, n in bad.items())
+            raise ValueError(
+                f"Null numeric values after cast for {symbol} ({context}): {details}. "
+                f"API nulls must not be persisted as NaN."
+            )
+
     # ------------------------------------------------------------------
     # Kline fetching
     # ------------------------------------------------------------------
@@ -193,6 +211,7 @@ class BybitFetcher:
             return raw
 
         raw[numeric_cols] = raw[numeric_cols].astype("float64")
+        self._reject_null_numerics(raw, numeric_cols, symbol=symbol, context=f"{price_type.value} klines")
         return self._to_datetime_index(raw)
 
 
@@ -388,6 +407,12 @@ class BybitFetcher:
 
         raw[list(FUNDING_SCHEMA.numeric_cols)] = (
             raw[list(FUNDING_SCHEMA.numeric_cols)].astype("float64")
+        )
+        self._reject_null_numerics(
+            raw,
+            list(FUNDING_SCHEMA.numeric_cols),
+            symbol=symbol,
+            context="funding",
         )
         return self._to_datetime_index(raw)
     
