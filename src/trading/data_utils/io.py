@@ -98,22 +98,19 @@ def _write_partition(
             )
             # Resolve duplicates: last write wins.
             combined = combined[~combined.index.duplicated(keep="last")]
-            _validate_partition(combined, year, month)
-
-            combined.to_parquet(file_path)
+            to_write = combined
             logger.debug(
                 "Merged partition %s: %d existing + %d new = %d rows.",
                 file_path, len(existing), len(group), len(combined),
             )
-
         else:
-            _validate_partition(group, year, month)
-            group.to_parquet(tmp_path)
-
+            to_write = group
             logger.debug("Wrote partition %s (%d rows).", file_path, len(group))
 
-            # Atomic rename — only replaces file_path if write succeeded
-            tmp_path.rename(file_path)
+        _validate_partition(to_write, year, month)
+        to_write.to_parquet(tmp_path)
+        # Atomic rename — only replaces file_path if write succeeded
+        tmp_path.rename(file_path)
 
     except Exception:
         # Clean up temp file on any failure
