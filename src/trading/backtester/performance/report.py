@@ -132,6 +132,22 @@ _FORMAT: dict[str, str] = {
 }
 
 class PerformanceReport:
+    """
+    Aggregates return, risk, cost, and trade metrics for a backtest.
+
+    Builds a shared CoreStats substrate from portfolio history, then
+    exposes metric groups and helpers to summarise, save, or display.
+
+    Parameters
+    ----------
+    portfolio_history : pd.DataFrame
+        Bar-indexed portfolio snapshots (equity, PnL components, etc.).
+    trade_log : TradeLog
+        Closed/open trade records used by TradeMetrics.
+    rf : float, default 0.0
+        Annualised simple risk-free rate (e.g. 0.05 = 5%).
+    """
+
     def __init__(
         self, portfolio_history: pd.DataFrame,
         trade_log: TradeLog,
@@ -147,7 +163,14 @@ class PerformanceReport:
         
 
     def summary(self) -> dict[str, float]:
-        """Flat dict of every exported scalar metric across all groups."""
+        """
+        Flatten every exported scalar metric across all metric groups.
+
+        Returns
+        -------
+        dict[str, float]
+            Mapping of metric name → value from returns, risk, cost, and trade.
+        """
         return {
             **self.returns.to_dict(),
             **self.risk.to_dict(),
@@ -156,14 +179,40 @@ class PerformanceReport:
         }
 
     def save(self, run_dir: Path) -> None:
+        """
+        Write ``summary()`` to ``run_dir / report.json``.
+
+        Parameters
+        ----------
+        run_dir : Path
+            Destination run directory.
+        """
         with open(run_dir / "report.json", "w") as f:
             json.dump(self.summary(), f, indent=2)
 
     def display(self, backtest_config: BacktestConfig) -> None:
+        """
+        Render a formatted metrics report in the notebook / IPython frontend.
+
+        Parameters
+        ----------
+        backtest_config : BacktestConfig
+            Used for core metadata (symbol, dates, capital) and dollar scaling.
+        """
         display_report(self.summary(), backtest_config)
 
 
 def display_report(report: dict[str, float], backtest_config: BacktestConfig) -> None:
+    """
+    Display core run metadata plus metric sections from a flat report dict.
+
+    Parameters
+    ----------
+    report : dict[str, float]
+        Flat metric map as produced by ``PerformanceReport.summary()``.
+    backtest_config : BacktestConfig
+        Supplies symbol, interval, date range, and initial capital.
+    """
     capital = backtest_config.initial_capital
     display(_core_section(report, backtest_config))
     for section_key, metric_keys in METRICS.items():

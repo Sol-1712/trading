@@ -9,6 +9,16 @@ from trading.backtester.portfolio.trade import Trade
 
 
 class TradeMetrics(MetricsGroup):
+    """
+    Trade-log and position-state metrics.
+
+    Parameters
+    ----------
+    core : CoreStats
+        Shared portfolio history substrate.
+    trade_log : TradeLog
+        Source of closed round-trip trades.
+    """
 
     def __init__(self, core: CoreStats, trade_log: TradeLog) -> None:
         super().__init__(core)

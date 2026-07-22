@@ -13,6 +13,24 @@ from trading.backtester.engine import BacktestConfig, build_config
 
 @dataclass(frozen=True)
 class RunReview:
+    """
+    Loaded artifacts from a completed run directory for offline review.
+
+    Attributes
+    ----------
+    run_dir : str or Path
+        Resolved path to the run folder.
+    backtest_config : dict
+        Raw ``backtest`` section from ``run_config.yaml``.
+    strategy_config : dict
+        Raw ``strategy`` section from ``run_config.yaml``.
+    metrics : dict[str, float]
+        Contents of ``report.json``.
+    portfolio_history : pd.DataFrame
+        Bar-level portfolio history from parquet.
+    trades : pd.DataFrame
+        Closed trades from parquet.
+    """
     run_dir: str | Path
     backtest_config: dict
     strategy_config: dict
@@ -22,6 +40,19 @@ class RunReview:
 
     @classmethod
     def build(cls, run_dir: str | Path) -> RunReview:
+        """
+        Load configs, metrics, and history from a run directory.
+
+        Parameters
+        ----------
+        run_dir : str or Path
+            Run id relative to ``PROJECT_ROOT / runs`` (str), or an absolute Path.
+
+        Returns
+        -------
+        RunReview
+            Frozen container with all loaded run artifacts.
+        """
         # run = RunReview.build(run_dir)
 
         run_dir = _resolve_run_dir(run_dir)
@@ -43,6 +74,9 @@ class RunReview:
         )
 
     def display(self) -> None:
+        """
+        Render the saved metrics report using the run's backtest config.
+        """
         config = _build_backtest_config(self.backtest_config)
         display_report(self.metrics, config)
 

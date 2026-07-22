@@ -12,14 +12,25 @@ def setup_logging(
     run_dir: Optional[Path] = None,
 ) -> None:
     """
-    Configure logging for the entire platform.
+    Configure logging for the trading platform root logger.
+
     Call once at the top of any script or notebook entry point.
-    
-    Params
+    Subsequent calls are no-ops if handlers are already attached.
+
+    Parameters
+    ----------
+    console_level : int, default logging.INFO
+        Minimum severity written to stdout.
+    file_level : int, default logging.DEBUG
+        Minimum severity written to ``run_dir / run.log`` when
+        ``run_dir`` is provided.
+    run_dir : Path or None
+        If set, also attach a rotating file handler under this directory.
+
+    Raises
     ------
-    console_level : what severity to show in the terminal
-    file_level    : what severity to write to disk
-    run_dir       : if provided, also write logs to this directory
+    FileExistsError
+        If ``run_dir / run.log`` already exists.
     """
     root = logging.getLogger(PROJECT_ROOT_LOGGER)
 

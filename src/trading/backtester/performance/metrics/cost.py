@@ -6,6 +6,7 @@ from .utils import compute_sharpe
 
 
 class CostMetrics(MetricsGroup):
+    """Fee, funding, turnover, and cost-drag metrics."""
 
     @cached_property
     def _net_return_sum(self) -> float:
@@ -24,6 +25,11 @@ class CostMetrics(MetricsGroup):
 
     @cached_property
     def _position_fraction_delta(self) -> np.ndarray:
+        """
+        Absolute bar-to-bar change in position_fraction.
+
+        ``prepend=0.0`` treats the first bar as a move from flat.
+        """
         return np.abs(np.diff(self.core.position_fraction, prepend=0.0))
 
     @property
@@ -98,7 +104,7 @@ class CostMetrics(MetricsGroup):
 
     @property
     def annualised_turnover(self) -> float:
-        """Annualised sum of absolute position-fraction changes."""
+        """Mean |Δ position_fraction| scaled by periods per year."""
         return float(np.mean(self._position_fraction_delta) * self.core.ann_factor)
 
     @property

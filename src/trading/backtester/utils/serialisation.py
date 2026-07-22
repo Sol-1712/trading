@@ -4,8 +4,20 @@ from pathlib import Path
 
 def serialize(obj):
     """
-    Recursively convert an object into standard Python types suitable for
-    YAML/JSON serialization.
+    Recursively convert an object into YAML/JSON-safe Python types.
+
+    Handles dataclasses, Enums, Paths, dicts, lists/tuples, and types.
+    Other values are returned unchanged.
+
+    Parameters
+    ----------
+    obj : Any
+        Object to serialize (nested structures supported).
+
+    Returns
+    -------
+    Any
+        Structure of built-in types suitable for yaml.safe_dump / json.dump.
     """
 
     if is_dataclass(obj):
@@ -38,4 +50,3 @@ def serialize(obj):
         return obj.__name__
 
     return obj
-

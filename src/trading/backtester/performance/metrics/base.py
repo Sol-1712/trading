@@ -8,7 +8,7 @@ from .core_stats import CoreStats
 class MetricsGroup:
     """
     Base for all metrics groups (ReturnMetrics, RiskMetrics, CostMetrics,
-    PositionMetrics).
+    TradeMetrics).
 
     Every public @property or @cached_property defined on a subclass is
     automatically included in to_dict()/summary() output. Prefix a name
@@ -23,6 +23,15 @@ class MetricsGroup:
 
 
     def to_dict(self) -> dict[str, float]:
+        """
+        Export all public property / cached_property metrics on this group.
+
+        Returns
+        -------
+        dict[str, float]
+            Sorted mapping of metric name → computed value. Underscore-prefixed
+            attributes are excluded.
+        """
         cls = type(self)
         names = [
             name for name, attr in vars(cls).items()

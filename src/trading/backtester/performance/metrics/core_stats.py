@@ -84,46 +84,57 @@ class CoreStats:
 
     @cached_property
     def equity_lagged(self) -> np.ndarray:
+        """Equity shifted by one bar; bar 0 uses equity[0] (no lookback)."""
         lag = np.roll(self.equity, 1)
         lag[0] = self.equity[0]
         return lag
 
     @cached_property
     def returns(self) -> np.ndarray:
-        """Single source of truth for per-bar return: derived from net_pnl,
-        NOT equity.pct_change(). Guarantees agreement with the
-        position/funding/fee return decomposition below by construction."""
+        """
+        Per-bar net return from net_pnl / equity_lagged.
+
+        Single source of truth — not equity.pct_change(). Agrees with the
+        position/funding/fee decomposition below by construction.
+        """
         return safe_divide(self.net_pnl, self.equity_lagged)
 
     @cached_property
     def log_returns(self) -> np.ndarray:
+        """Natural log returns: log1p(returns)."""
         return np.log1p(self.returns)
 
     @cached_property
     def excess_returns(self) -> np.ndarray:
+        """Simple returns minus the per-bar risk-free rate."""
         return self.returns - self.rf_bar
 
     # --- Return decomposition (component-level, agrees with `returns` by construction) ---
 
     @cached_property
     def position_returns(self) -> np.ndarray:
+        """Per-bar position PnL as a fraction of lagged equity."""
         return safe_divide(self.position_pnl, self.equity_lagged)
 
     @cached_property
     def fee_returns(self) -> np.ndarray:
+        """Per-bar fees as a fraction of lagged equity."""
         return safe_divide(self.fees, self.equity_lagged)
 
     @cached_property
     def funding_returns(self) -> np.ndarray:
+        """Per-bar funding PnL as a fraction of lagged equity."""
         return safe_divide(self.funding_pnl, self.equity_lagged)
 
     # --- Drawdown ---
 
     @cached_property
     def running_peak(self) -> np.ndarray:
+        """Running maximum of equity (high-water mark)."""
         return np.maximum.accumulate(self.equity)
 
     @cached_property
     def drawdown(self) -> np.ndarray:
+        """Fractional drawdown from running peak (≤ 0)."""
         gap = self.equity - self.running_peak
         return safe_divide(gap, self.running_peak)

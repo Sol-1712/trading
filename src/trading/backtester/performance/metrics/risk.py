@@ -6,6 +6,7 @@ from .utils import compute_sharpe
 
 
 class RiskMetrics(MetricsGroup):
+    """Drawdown, volatility, and risk-adjusted return metrics."""
 
     @cached_property
     def _long_mask(self) -> np.ndarray:
@@ -182,11 +183,23 @@ class RiskMetrics(MetricsGroup):
         return float(streak_lengths.max())
 
     def _var(self, alpha: float) -> float:
+        """
+        Historical VaR on log returns as a positive loss magnitude.
+
+        Uses the ``alpha`` percentile of log returns, then negates so
+        larger losses are reported as larger positive values.
+        """
         if self.core.log_returns.size == 0:
             return float("nan")
         return float(-np.percentile(self.core.log_returns, alpha * 100))
 
     def _cvar(self, alpha: float) -> float:
+        """
+        Historical CVaR: mean of log returns at or below the VaR threshold.
+
+        Returned as a positive loss magnitude (negated mean of the tail).
+        Empty tail yields 0.0; empty series yields NaN.
+        """
         if self.core.log_returns.size == 0:
             return float("nan")
 
