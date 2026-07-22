@@ -5,6 +5,10 @@ import time
 
 logger = logging.getLogger(__name__)
 
+class PaginationError(RuntimeError):
+    """Raised when a paginated fetch cannot complete after retries."""
+
+
 def fetch_paginated(
     call_fn: Callable[[int, int], pd.DataFrame],
     time_col: str,
@@ -18,7 +22,6 @@ def fetch_paginated(
 
     Repeatedly calls ``call_fn(start, end)`` until the earliest returned
     timestamp reaches ``start``, or no data is returned.
-
 
     Parameters
     ----------
@@ -41,6 +44,13 @@ def fetch_paginated(
     -------
     pd.DataFrame
         Chronologically sorted, deduplicated result. Empty if nothing returned.
+
+    Raises
+    ------
+    PaginationError
+        If a page call exhausts retries. Partial page sets are never returned
+        as a successful result — callers must not treat a failed pagination
+        as complete coverage.
     """
     pages: list[pd.DataFrame] = []
     current_end = end
@@ -48,7 +58,7 @@ def fetch_paginated(
     while current_end > start:
         page = _call_with_retry(call_fn, start, current_end, max_retries, retry_delay)
 
-        if page is None or page.empty:
+        if page.empty:
             break
         page[time_col] = page[time_col].astype("int64")
         pages.append(page)
@@ -78,7 +88,7 @@ def _call_with_retry(
     end:         int,
     max_retries: int,
     retry_delay: float,
-) -> pd.DataFrame | None:
+) -> pd.DataFrame:
     """
     Call call_fn(start, end) with exponential backoff on failure.
 
@@ -87,15 +97,23 @@ def _call_with_retry(
 
     Returns
     -------
-    pd.DataFrame | None
-        None means retries exhausted — caller treats as API failure.
-        Empty DataFrame means API returned successfully with no data.
+    pd.DataFrame
+        Page data. Empty DataFrame means API returned successfully with no data.
+
+    Raises
+    ------
+    PaginationError
+        If all retry attempts fail. Does not return a sentinel — the caller
+        must not continue pagination or treat prior pages as a complete fetch.
     """
+    last_exc: Exception | None = None
+
     for attempt in range(max_retries):
         try:
             return call_fn(start, end)
 
         except Exception as exc:
+            last_exc = exc
             exc_str = str(exc).lower()
             is_rate_limit = (
                 "429"         in exc_str or
@@ -119,4 +137,7 @@ def _call_with_retry(
             time.sleep(wait)
 
     logger.error("API call abandoned after %d attempts.", max_retries)
-    return None
+    raise PaginationError(
+        f"API call failed after {max_retries} attempts "
+        f"(window start={start}, end={end})."
+    ) from last_exc
