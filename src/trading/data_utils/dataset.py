@@ -5,7 +5,11 @@ from dataclasses import dataclass
 import yaml
 
 from trading.data_utils.fetcher import BybitFetcher
-from trading.data_utils.io import get_stored_range, save_partitioned_parquet
+from trading.data_utils.io import (
+    find_coverage_gaps,
+    get_stored_range,
+    save_partitioned_parquet,
+)
 from trading.data_utils.core import PriceType, DataType, make_data_path, CONFIGS_ROOT
 
 logger = logging.getLogger(__name__)
@@ -121,39 +125,42 @@ def update_klines(
                 price_type = pt,
             )
 
-            fetch_start, fetch_end = _resolve_fetch_range(path, start, end, interval)
+            ranges = _resolve_fetch_range(path, start, end, interval)
 
-            if fetch_start is None:
+            if not ranges:
                 logger.info(
                     "%s %s %dm — already up to date, skipping.",
                     symbol, pt.value, interval,
                 )
                 continue
 
-            logger.info(
-                "Updating %s %s %dm from %d to %s.",
-                symbol, pt.value, interval, fetch_start,
-                fetch_end or "now",
-            )
-
-            df = fetcher.fetch_klines(
-                symbol      = symbol,
-                interval    = interval,
-                price_type  = pt,
-                start       = fetch_start,
-                end         = fetch_end,
-            )
-
-            if df.empty:
-                logger.warning(
-                    "No data returned for %s %s %dm — "
-                    "API exhausted or data unavailable.",
-                    symbol, pt.value, interval,
+            for fetch_start, fetch_end in ranges:
+                logger.info(
+                    "Updating %s %s %dm from %d to %s.",
+                    symbol, pt.value, interval, fetch_start,
+                    fetch_end or "now",
                 )
-                continue
 
-            _validate_fetch_coverage(df, fetch_start, fetch_end, symbol, pt, interval)
-            save_partitioned_parquet(df, path)
+                df = fetcher.fetch_klines(
+                    symbol      = symbol,
+                    interval    = interval,
+                    price_type  = pt,
+                    start       = fetch_start,
+                    end         = fetch_end,
+                )
+
+                if df.empty:
+                    logger.warning(
+                        "No data returned for %s %s %dm — "
+                        "API exhausted or data unavailable.",
+                        symbol, pt.value, interval,
+                    )
+                    continue
+
+                _validate_fetch_coverage(
+                    df, fetch_start, fetch_end, symbol, pt, interval
+                )
+                save_partitioned_parquet(df, path)
 
 
 def update_funding(
@@ -233,13 +240,13 @@ def _resolve_fetch_range(
     start:    int,
     end:      int | None,
     interval: int,
-) -> tuple[int | None, int | None]:
+) -> list[tuple[int, int | None]]:
     """
-    Determine the fetch range for a dataset given its stored range.
+    Determine fetch ranges needed given on-disk coverage.
 
-    Backfills when ``start`` is earlier than stored data; forward-fills
-    when ``end`` extends past stored data. Returns ``(None, None)`` when
-    the requested window is already fully covered.
+    Uses all partitions to detect leading, interior, and trailing gaps —
+    not only the overall min/max. Returns an empty list when the requested
+    window is already fully covered.
 
     Parameters
     ----------
@@ -250,36 +257,15 @@ def _resolve_fetch_range(
     end : int | None
         Requested end timestamp in milliseconds, or ``None`` for open-ended.
     interval : int
-        Bar interval in minutes — used to step one bar past stored bounds.
+        Bar interval in minutes — used as the expected bar spacing.
 
     Returns
     -------
-    tuple[int | None, int | None]
-        ``(fetch_start, fetch_end)`` in milliseconds.
-        ``(None, None)`` if no fetch is needed.
+    list[tuple[int, int | None]]
+        ``(fetch_start, fetch_end)`` ranges in milliseconds.
+        Empty if no fetch is needed.
     """
-    stored = get_stored_range(path)
-
-    if stored is None:
-        # No data exists — fetch full requested range
-        return start, end
-
-    stored_start_ms = int(stored[0].timestamp() * 1000)
-    stored_end_ms   = int(stored[1].timestamp() * 1000)
-    interval_ms     = interval * 60 * 1000
-
-    ### There is techincally a hole, if I request earlier data than is there, it won't
-    ### collect data newer than what is stored.
-    if start < stored_start_ms:
-        # Backfill — fetch from requested start up to stored start
-        return start, stored_start_ms - interval_ms
-
-    if end is None or end > stored_end_ms:
-        # Forward fill — fetch from stored end onwards
-        return stored_end_ms + interval_ms, end
-
-    # Requested range fully covered by stored data
-    return None, None
+    return find_coverage_gaps(path, interval, start, end)
 
 # ------------------------------------------------------------------
 # Validation

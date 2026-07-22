@@ -12,7 +12,6 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 WriteMode = Literal["merge", "overwrite"]
-Bound     = Literal["start", "end"]
 
 # ---------------------------------------------------------------------------
 # Write
@@ -130,6 +129,9 @@ def get_stored_range(path: str | Path) -> tuple[pd.Timestamp, pd.Timestamp] | No
     Return the timestamp range stored in a partitioned dataset,
     or None if no data exists yet.
 
+    Scans every partition file (not only the earliest/latest year-month
+    directories) so the bounds reflect all on-disk data.
+
     Parameters
     ----------
     path : str | Path
@@ -141,47 +143,133 @@ def get_stored_range(path: str | Path) -> tuple[pd.Timestamp, pd.Timestamp] | No
         ``(min_timestamp, max_timestamp)`` in the dataset, or ``None``
         if no data exists.
     """
-
-    path = Path(path)
-
-    try:
-        year_dirs  = sorted(path.glob("year=*"))
-        dirs: dict[Bound, Path] = {}
-        dirs["start"] = year_dirs[0]  # Earliest year directory
-        dirs["end"]   = year_dirs[-1] # Latest year directory
-
-    except (IndexError, ValueError):
-        logger.warning("No valid year directories found in path: %s", path)
+    indexes = _load_all_partition_indexes(Path(path))
+    if not indexes:
         return None
-    
-    timestamps: dict[Bound, pd.Timestamp] = {}
-    for bound, year_dir in dirs.items():
+
+    min_ts = min(idx.min() for idx in indexes)
+    max_ts = max(idx.max() for idx in indexes)
+    return (min_ts, max_ts)
+
+
+def find_coverage_gaps(
+    path: str | Path,
+    interval_minutes: int,
+    start_ms: int,
+    end_ms: int | None = None,
+) -> list[tuple[int, int | None]]:
+    """
+    Return fetch ranges needed to fill missing coverage in a dataset.
+
+    Inspects every partition so interior holes (missing months or missing
+    bars between stored timestamps) are detected — not only the overall
+    min/max from edge partitions.
+
+    Parameters
+    ----------
+    path : str | Path
+        Root directory of the partitioned dataset.
+    interval_minutes : int
+        Expected bar spacing in minutes.
+    start_ms : int
+        Requested window start (ms, inclusive).
+    end_ms : int, optional
+        Requested window end (ms, inclusive), or ``None`` for open-ended
+        forward fill.
+
+    Returns
+    -------
+    list[tuple[int, int | None]]
+        ``(fetch_start_ms, fetch_end_ms)`` ranges suitable for the fetcher.
+        Empty if the requested window is fully covered. ``fetch_end_ms`` is
+        ``None`` for an open-ended trailing fill.
+    """
+    interval_ms = interval_minutes * 60 * 1000
+    start_ts = pd.Timestamp(start_ms, unit="ms", tz="UTC")
+
+    indexes = _load_all_partition_indexes(Path(path))
+    if not indexes:
+        return [(start_ms, end_ms)]
+
+    full = indexes[0]
+    for idx in indexes[1:]:
+        full = full.union(idx)
+    full = full.sort_values()
+
+    first_ms = int(full[0].timestamp() * 1000)
+    last_ms = int(full[-1].timestamp() * 1000)
+
+    # Stored data entirely outside the requested window → fetch the whole window.
+    if last_ms < start_ms:
+        return [(start_ms, end_ms)]
+    if end_ms is not None and first_ms > end_ms:
+        return [(start_ms, end_ms)]
+
+    gaps: list[tuple[int, int | None]] = []
+
+    # Leading gap: requested start is before the first stored bar.
+    if first_ms > start_ms:
+        lead_end = first_ms - interval_ms
+        if lead_end >= start_ms:
+            gaps.append((start_ms, lead_end))
+
+    # Interior gaps between consecutive stored bars.
+    expected = pd.Timedelta(milliseconds=interval_ms)
+    for i in range(len(full) - 1):
+        prev, nxt = full[i], full[i + 1]
+        if nxt - prev <= expected:
+            continue
+        gap_start = int(prev.timestamp() * 1000) + interval_ms
+        gap_end = int(nxt.timestamp() * 1000) - interval_ms
+        if end_ms is not None and gap_start > end_ms:
+            continue
+        if gap_end < start_ms:
+            continue
+        clipped_start = max(gap_start, start_ms)
+        clipped_end: int | None = gap_end if end_ms is None else min(gap_end, end_ms)
+        if clipped_end is not None and clipped_start > clipped_end:
+            continue
+        gaps.append((clipped_start, clipped_end))
+
+    # Trailing gap: stored data ends before the requested end (or open-ended).
+    if end_ms is None:
+        gaps.append((last_ms + interval_ms, None))
+    elif last_ms < end_ms:
+        trail_start = max(last_ms + interval_ms, start_ms)
+        if trail_start <= end_ms:
+            gaps.append((trail_start, end_ms))
+
+    return gaps
+
+
+def _load_all_partition_indexes(path: Path) -> list[pd.DatetimeIndex]:
+    """Load the DatetimeIndex from every partition under ``path``."""
+    if not path.exists():
+        return []
+
+    files = _collect_partition_files(path, start=None, end=None)
+    if not files:
+        return []
+
+    indexes: list[pd.DatetimeIndex] = []
+    for file_path in files:
         try:
-            month_dirs = sorted(year_dir.glob("month=*")) 
-            if bound == "start":
-                month_dir = month_dirs[0]  # Earliest month directory
-            else:
-                month_dir = month_dirs[-1] # Latest month directory
-
-        except (IndexError, ValueError):
-            logger.warning("No valid month directories found in year directory: %s", year_dir)
-            return None
-
-        file_path = month_dir / "data.parquet"
-
-        if file_path.exists():
-            df = pd.read_parquet(file_path,).iloc[:, :0]  # Load only the index (no columns)
-        else:
-            logger.warning("No parquet files found in path: %s", path)
-            return None
-    
+            df = pd.read_parquet(file_path).iloc[:, :0]
+        except Exception as exc:
+            logger.warning("Failed to read partition index from %s: %s", file_path, exc)
+            continue
         if len(df.index) == 0:
-            logger.warning("get_stored_range retrieved an empty DataFrame")
-            return None
+            continue
+        if not isinstance(df.index, pd.DatetimeIndex):
+            logger.warning("Partition %s has no DatetimeIndex — skipping.", file_path)
+            continue
+        if df.index.tz is None:
+            df.index = df.index.tz_localize("UTC")
+        else:
+            df.index = df.index.tz_convert("UTC")
+        indexes.append(df.index)
 
-        timestamps[bound] = df.index.min() if bound == "start" else df.index.max()
-
-    return (timestamps["start"], timestamps["end"])
+    return indexes
 
 
 def load_partitioned_parquet(
