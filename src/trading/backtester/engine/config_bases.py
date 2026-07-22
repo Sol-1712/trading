@@ -57,7 +57,7 @@ class ExecutionConfig:
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.fee_rate < 1.0:
-            raise ValueError(f"fee_rate {self.fee_rate} out of range [0, 0.01]")
+            raise ValueError(f"fee_rate {self.fee_rate} out of range [0, 1)")
         if self.delay_bars < 1:
             raise ValueError(f"delay_bars must be >= 1, got {self.delay_bars}")
         

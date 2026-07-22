@@ -32,7 +32,6 @@ class ExecutionEngine(ABC):
         self.config                     = config
         self._fill_model                = config.fill_model_cls(fee_rate=config.fee_rate)
         self._queue:   dict[int, Order] = {}
-        self._pending: list[Order]      = []
         self._pending_notional: float   = 0.0
         self._current_bar: int          = 0
         self._active: list[Order]       = []
@@ -98,6 +97,6 @@ class ExecutionEngine(ABC):
     def _cancel_all_pending(self) -> None:
         """Clear all pending and queued orders. Called on liquidation or error."""
         self._queue.clear()
-        self._pending.clear()
+        self._active.clear()
         self._pending_notional = 0.0
         logger.debug("Cancelled all pending orders")

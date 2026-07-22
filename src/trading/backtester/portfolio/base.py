@@ -282,6 +282,7 @@ class Portfolio:
         self._position_units = 0.0
         self._last_price     = None
         self._snapshots      = []
+        self._trade_log      = TradeLog()
         logger.debug("Portfolio reset to initial state: capital=%.2f", 
                     self._initial_capital)
 
