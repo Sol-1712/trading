@@ -92,56 +92,84 @@ class BacktestRunner:
         targets:  list[float | None] = []
         index     = data.index
         n         = len(data)
+        t         = -1
 
         for t in range(n):
-            
+
             bar          = data.iloc[t]
+            timestamp    = index[t]
             mark_close   = float(bar[self._mtm_col])
             funding_rate = float(bar.get("funding_rate", 0.0))
 
             # Accrue portfolio
-            position_pnl, funding_pnl = self._portfolio.accrue_bar(
-                timestamp    = index[t],
+            self._portfolio.accrue_bar(
+                timestamp    = timestamp,
                 mtm_price    = mark_close,
                 funding_rate = funding_rate)
 
             if self._portfolio.is_ruined():
-                logger.info("Portfolio is ruined at bar %d", t)
-                ### LIQUIDATE HERE: TO IMPLEMENT
+                logger.info("Portfolio reached ruin at bar %d — stopping backtest", t)
                 break
 
             # Attempt fills on pending orders
             fills = self._engine.execute_pending(bar, t)
 
-            # Update portfolio state
-            state = self._portfolio.account_fills(
-                timestamp    = index[t],
+            # Apply fills
+            self._portfolio.apply_fills(
                 fills        = fills,
-                position_pnl = position_pnl,
-                funding_pnl  = funding_pnl,
             )
 
-            # Signal -> Target -> Risk
-            signal = signals[t] 
-            target = self._size_pos(signal)
-            target = self._apply_risk(target, state)
-            targets.append(target)
+            # --- Non-final Bar ----------------------------------------
+            if t < n-1: 
 
-            if target is not None:
-                self._engine.submit(
-                    target_fraction = target, 
-                    state = state, 
-                    price = mark_close)
+                state = self._portfolio.commit_snapshot()
+
+                # Signal -> Target -> Risk
+                signal = signals[t] 
+                target = self._size_pos(signal)
+                target = self._apply_risk(target, state)
+                targets.append(target)
+
+                if target is not None:
+                    self._engine.submit(
+                        timestamp       = timestamp,
+                        target_fraction = target, 
+                        equity          = state.equity,
+                        position_units  = state.position_units,
+                        price           = mark_close,
+                        )
+
+        # --- After the loop -----------------------------------------
+
+        exit_bar = bar
+        exit_t = t
+        exit_ts = timestamp
+        exit_price = mark_close
+
+        # Cancel leftover queue, flatten residual, commit exit bar once.
+        self._engine.cancel_all_pending()
+        if not self._portfolio.is_flat():
+            self._flatten(
+                timestamp=exit_ts,
+                bar=exit_bar,
+                t=exit_t,
+                price=exit_price,
+            )
+
+        self._portfolio.commit_snapshot()
 
         history = self._portfolio.history()
-        logger.info("Backtest complete: %d bars processed, final equity=%.2f",
-                   len(data), self._portfolio.equity)
+        logger.info(
+            "Backtest complete: %d bars processed, final equity=%.2f",
+            self._portfolio.n_bars,
+            self._portfolio.equity,
+        )
 
         return BacktestResults(
-            signals = signals,
-            targets = targets,
-            trade_log = self._portfolio.trade_log,
-            portfolio_history = history,
+            signals=signals,
+            targets=targets,
+            trade_log=self._portfolio.trade_log,
+            portfolio_history=history,
         )
 
 
@@ -359,6 +387,39 @@ class BacktestRunner:
         """
         return target
     
-    
 
+    def _flatten(
+        self,
+        timestamp: pd.Timestamp,
+        bar: pd.Series,
+        t: int,
+        price: float,
+    ) -> None:
+        """
+        Immediately submit and fill a flat target; apply fills into the open bar.
+
+        Sets the engine bar index before submit so ``immediate`` queues at ``t``.
+        """
+        self._engine._current_bar = t
+
+        self._engine.submit(
+            timestamp       = timestamp,
+            target_fraction = 0.0,
+            equity          = self._portfolio.equity,
+            position_units  = self._portfolio.position_units,
+            price           = price,
+            immediate       = True
+        )
+        fills = self._engine.execute_pending(bar, t)
+        self._portfolio.apply_fills(fills)
+
+        if not self._portfolio.is_flat():
+            logger.warning(
+                "Flatten at %s left residual position_units=%.6g "
+                "(MTM vs fill-price sizing dust is possible)",
+                timestamp,
+                self._portfolio.position_units,
+            )
+        else:
+            logger.info("Flattened portfolio at %s", timestamp)
 

@@ -12,9 +12,9 @@ def simple_size(
     Strength scaling belongs in a proper volatility-targeting sizer.
     """
     if signal.direction is SignalDirection.LONG:
-        return float(max_position / 2)
+        return float(max_position / 1)
 
     elif signal.direction is SignalDirection.SHORT:
-        return float(-max_position / 2)
+        return float(-max_position / 1)
 
     return 0.0

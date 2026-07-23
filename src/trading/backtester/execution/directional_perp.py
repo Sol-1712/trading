@@ -1,6 +1,6 @@
 from trading.backtester.execution      import ExecutionEngine
 from trading.backtester.fill           import Fill, Order
-from trading.backtester.portfolio.base import PortfolioSnapshot
+
 from trading.backtester.engine.config_bases  import ExecutionConfig
 
 import pandas as pd
@@ -26,7 +26,7 @@ class PerpDirectionalEngine(ExecutionEngine):
     Engine state is execution-layer only — no strategy or portfolio logic.
     """
 
-    _FRACTION_TOLERANCE: ClassVar[float] = 1e-9
+    _UNITS_TOLERANCE: ClassVar[float] = 1e-9
 
     def __init__(self, config: ExecutionConfig) -> None:
         super().__init__(config)
@@ -34,9 +34,12 @@ class PerpDirectionalEngine(ExecutionEngine):
 
     def submit(
         self,
+        timestamp:       pd.Timestamp,
         target_fraction: float,
-        state:           PortfolioSnapshot,
+        equity:          float,
+        position_units:  float,
         price:           float,
+        immediate:       bool = False,
     ) -> None:
         """
         Convert a target position into an Order and queue it for execution.
@@ -53,46 +56,79 @@ class PerpDirectionalEngine(ExecutionEngine):
 
         Parameters
         ----------
+        timestamp : pd.Timestamp
+            Timestamp of the current bar.
+            Converted to datetime for the order.
         target_fraction : float
             Desired signed position as a fraction of equity.
-        state : PortfolioSnapshot
-            Current portfolio state (equity and position_units).
+        equity : float
+            Current equity.
+        position_units : float
+            Current position units.
         price : float
             MTM price used to convert units ↔ fraction of equity.
-
+        immediate:       bool = False,
+            Whether to submit the order immediately.
         Raises
         ------
         ValueError
             If ``target_fraction`` is non-finite.
         """
-
-        if state.equity <= 0.0:
-            logger.warning(
-                "Cannot submit order: equity %.2f at %s — skipping.",
-                state.equity, state.timestamp,
-            )
-            return
-    
+        
         if not math.isfinite(target_fraction):
-            raise ValueError(f"Non-finite target_fraction: {target_fraction}")
-            
-        current_fraction  = (state.position_units * price) / state.equity
-        pending_fraction  = self._pending_notional / state.equity
+            raise ValueError("Non-finite target_fraction")
+
+        if isinstance(timestamp, pd.Timestamp):
+            timestamp = timestamp.to_pydatetime()
+
+        # --- Flat / flatten: never divide by equity ---
+        if abs(target_fraction) <= self._UNITS_TOLERANCE:
+            self.cancel_all_pending()  # don't leave size-ups hanging
+            if abs(position_units) <= self._UNITS_TOLERANCE:
+                return
+            delta_notional = -position_units * price
+            exec_bar = (
+                self._current_bar if immediate
+                else self._current_bar + self.config.delay_bars
+            )
+            order = Order(
+                placed_at=timestamp,
+                exec_bar=exec_bar,
+                delta_notional=delta_notional,
+                remaining_notional=delta_notional,
+            )
+            self._queue[exec_bar] = order
+            self._pending_notional += delta_notional
+            return
+
+
+
+        if equity <= 0.0:
+            logger.warning("Cannot submit: equity %.2f — skipping.", equity)
+            return
+
+        # --- Submit order --------------------------------------------
+        current_fraction  = (position_units * price) / equity
+        pending_fraction  = self._pending_notional / equity
         expected_fraction = current_fraction + pending_fraction
         delta_fraction    = target_fraction - expected_fraction
 
         if self._is_reversal(delta_fraction):
-            self._cancel_all_pending()
+            self.cancel_all_pending()
             delta_fraction = target_fraction - current_fraction
 
-        if abs(delta_fraction) <= self._FRACTION_TOLERANCE:
+        if abs(delta_fraction) <= self._UNITS_TOLERANCE:
             return  # pending orders will get us close enough
 
-        delta_notional = delta_fraction * state.equity
-        exec_bar = self._current_bar + self.config.delay_bars
+        delta_notional = delta_fraction * equity
+
+        exec_bar = (
+            self._current_bar if immediate
+            else self._current_bar + self.config.delay_bars
+        )
 
         order = Order(
-            placed_at          = state.timestamp,
+            placed_at          = timestamp,
             exec_bar           = exec_bar,
             delta_notional     = delta_notional,
             remaining_notional = delta_notional,
@@ -149,7 +185,7 @@ class PerpDirectionalEngine(ExecutionEngine):
             signed_notional_filled = fill.units_filled * fill.fill_price
             notional_filled = abs(signed_notional_filled)
 
-            if notional_filled >= abs(order.remaining_notional) - self._FRACTION_TOLERANCE:
+            if notional_filled >= abs(order.remaining_notional) - self._UNITS_TOLERANCE:
                 # Fully filled — remove from active, clear pending tracking
                 fills.append(fill)
                 self._pending_notional -= order.delta_notional
@@ -177,7 +213,7 @@ class PerpDirectionalEngine(ExecutionEngine):
         Used to decide whether to cancel pending orders before submitting
         a new target that flips direction relative to in-flight exposure.
         """
-        if abs(self._pending_notional) <= self._FRACTION_TOLERANCE:
+        if abs(self._pending_notional) <= self._UNITS_TOLERANCE:
             return False
         # True if delta_fraction and _pending_notional point opposite directions
         pending_sign = np.sign(self._pending_notional)

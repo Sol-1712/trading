@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-import dataclasses
+from datetime import datetime
+from dataclasses import dataclass, asdict
 import logging
 from typing import ClassVar
 import numpy as np
@@ -8,25 +9,30 @@ import pandas as pd
 import math
 
 from .snapshot import PortfolioSnapshot
-from .trade import TradeLog, Trade
+from .trade import TradeLog
 from trading.backtester.fill import Fill
 
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(slots=True)
+class _BarDraft:
+    timestamp:     datetime
+    position_pnl:  float = 0.0
+    funding_pnl:   float = 0.0
+    fees:          float = 0.0
+    fill_occurred: bool = False
+
+
 class Portfolio:
+
     """
     Stateful bar-by-bar portfolio simulator.
 
     Applies MTM, funding, and fill accounting each bar. Decoupled from
     ExecutionConfig — takes only the scalar inputs it needs so it can be
     used or tested independently.
-
-    Parameters
-    ----------
-    initial_capital : float
-        Starting equity in quote currency (e.g. USDT). Must be positive.
     """
 
     _UNITS_TOLERANCE:  ClassVar[float] = 1e-9  # below which delta is treated as zero
@@ -55,12 +61,11 @@ class Portfolio:
         self._equity:          float                   = initial_capital
         self._position_units:  float                   = 0.0
         self._last_price:      float | None            = None
+        self._bar:             _BarDraft | None        = None
         self._snapshots:       list[PortfolioSnapshot] = []
         
 
-        logger = logging.getLogger(__name__)
-        logger.debug("Portfolio initialized: capital=%.2f", 
-                    initial_capital)
+        logger.debug("Portfolio initialized: capital=%.2f", initial_capital)
 
     # ------------------------------------------------------------------ #
     # Primary interface                                                   
@@ -68,16 +73,17 @@ class Portfolio:
 
     def accrue_bar(
         self, 
-        timestamp: pd.Timestamp, 
+        timestamp: datetime, 
         mtm_price: float, 
         funding_rate: float
-        ) -> tuple[float, float]:
+        ) -> None:
         """
         Accrue the portfolio state by one bar.
+        This function should be called once per bar.
 
         Parameters
         ----------
-        timestamp : pd.Timestamp
+        timestamp : datetime
             Timestamp of the current bar.
         mtm_price : float
             Mark-to-market price for this bar.
@@ -88,7 +94,12 @@ class Portfolio:
         ------
         ValueError
             If ``mtm_price`` is out of range or ``funding_rate`` is non-finite.
+        RuntimeError
+            If accrue_bar called before commit_snapshot.
         """
+
+        if self._bar is not None:
+            raise RuntimeError("accrue_bar called before commit_snapshot")
 
         # ── Validate inputs ──────────────────────────────────────────────
         if not (0 < mtm_price < 1e10):
@@ -101,7 +112,7 @@ class Portfolio:
         # ── 1. MTM existing position ─────────────────────────────────────
         # Position held during this bar earns close-to-close price change.
         position_pnl  = self._position_units * (mtm_price - prev_price)
-        self._equity += position_pnl        ### Need to reconcile this too
+        self._equity += position_pnl        
 
         # ── 2. Funding settlement ────────────────────────────────────────
         # Applied on position held at start of bar, at mtm price.
@@ -109,89 +120,79 @@ class Portfolio:
 
         funding_pnl   = -(self._position_units * mtm_price * funding_rate)
         self._equity += funding_pnl
-        self.trade_log.accrue_bar(funding_pnl) ### Need to test funding reconciles
+        self.trade_log.accrue_bar(funding_pnl) 
 
         # ── 3. Update price reference ────────────────────────────────────
         self._last_price = mtm_price
 
-        return (position_pnl, funding_pnl)
+        self._bar = _BarDraft(
+            timestamp=timestamp,
+            position_pnl=position_pnl,
+            funding_pnl=funding_pnl,
+        )
 
         
-    def account_fills(
-        self,
-        timestamp:       pd.Timestamp,
-        fills:           list[Fill],
-        position_pnl:    float,
-        funding_pnl:     float,
-    ) -> PortfolioSnapshot:
+    def apply_fills(self, fills: list[Fill]) -> None:
         """
-        Apply fills (fees + unit changes) from the execution engine
-        fills use each fill's own ``fill_price``.
+        Apply fills (fees + unit changes) from the execution engine.
+        Fills use each fill's own ``fill_price``. May be called multiple
+        times per bar; empty list is a no-op (does not clear fill_occurred).
 
         Parameters
         ----------
-        timestamp : pd.Timestamp
-            Timestamp of the current bar.
         fills : list[Fill]
-            Fills from ``execute_pending``; empty if none this bar.
-        position_pnl:    float
-            Position PNL for this bar.
-        funding_pnl:     float
-            Funding PNL for this bar.
-
-        Returns
-        -------
-        PortfolioSnapshot
-            Immutable end-of-bar state record.
+            Fills from ``execute_pending``; empty if none this call.
 
         Raises
         ------
         RuntimeError
-            If portfolio units disagree with TradeLog, state becomes NaN,
+            If called before accrue_bar / after commit_snapshot, units
+            disagree with TradeLog, or state is non-finite.
         """
+        if self._bar is None:
+            raise RuntimeError("apply_fills before accrue_bar")
 
-        total_fees = 0.0
+        if not fills:
+            return
+
         for fill in fills:
-            fee = fill.fees
-            self._equity -= fee
-            total_fees += fee
+            fees = fill.fees
+            self._equity -= fees
+            self._bar.fees += fees
             self._position_units += fill.units_filled
-            self.trade_log.on_fill(fill, timestamp)
+            self.trade_log.on_fill(fill, self._bar.timestamp)
+        self._bar.fill_occurred = True
+        self._reconcile()
 
-        # ── 4.Verify state ────────────────────────────────────
-        ### I think I should add a seperate portfolio/trade reconciliation function
-        expected_units = self.trade_log.open_trade.units if self.trade_log.open_trade else 0.0
-        if not math.isclose(self._position_units, expected_units, abs_tol=1e-9):
-            raise RuntimeError(
-                f"Position/TradeLog mismatch at {timestamp}: "
-                f"portfolio={self._position_units}, trade_log={expected_units}"
-            )
+    def commit_snapshot(self) -> PortfolioSnapshot:
+        if self._bar is None:
+            raise RuntimeError("commit_snapshot with no open bar")
+        if self._last_price is None:
+            raise RuntimeError("commit_snapshot with no mtm price")
 
-        if math.isnan(self._position_units) or math.isnan(self._equity):
-            raise RuntimeError(
-                f"Portfolio state became NaN at {timestamp}. "
-                f"position_units={self._position_units}, equity={self._equity}"
-        )
+        self._reconcile()
 
-        # ── 6. Derived values ────────────────────────────────────────────
+        bar = self._bar
+        price = self._last_price
         position_fraction = (
-            (self._position_units * self._last_price) / self._equity
-            if self._equity > 0 else 0.0 
+            (self._position_units * price) / self._equity
+            if self._equity > 0 else 0.0
         )
         snapshot = PortfolioSnapshot(
-            timestamp         = timestamp,
-            price             = self._last_price,
+            timestamp         = bar.timestamp,
+            price             = price,
             position_units    = self._position_units,
             position_fraction = position_fraction,
             equity            = self._equity,
-            position_pnl      = position_pnl,
-            funding_pnl       = funding_pnl,
-            fees              = total_fees,
-            net_pnl           = position_pnl + funding_pnl - total_fees,
-            fill_occurred    = len(fills) > 0,
+            position_pnl      = bar.position_pnl,
+            funding_pnl       = bar.funding_pnl,
+            fees              = bar.fees,
+            net_pnl           = bar.position_pnl + bar.funding_pnl - bar.fees,
+            fill_occurred     = bar.fill_occurred,
         )
 
         self._snapshots.append(snapshot)
+        self._bar = None
         return snapshot
 
 
@@ -257,7 +258,7 @@ class Portfolio:
             return pd.DataFrame()
 
         result = pd.DataFrame(
-            [dataclasses.asdict(s) for s in self._snapshots]
+            [asdict(s) for s in self._snapshots]
         ).set_index("timestamp")
         
         logger.debug("Exported portfolio history: %d rows", len(result))
@@ -280,12 +281,31 @@ class Portfolio:
         self._last_price     = None
         self._snapshots      = []
         self.trade_log       = TradeLog()
+        self._bar            = None
         logger.debug("Portfolio reset to initial state: capital=%.2f", 
                     self._initial_capital)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                    #
     # ------------------------------------------------------------------ #
+
+    def _reconcile(self) -> None:
+        """Assert book units match TradeLog and equity/units are finite."""
+        expected_units = (
+            self.trade_log.open_trade.units if self.trade_log.open_trade else 0.0
+        )
+        if not math.isclose(
+            self._position_units, expected_units, abs_tol=self._UNITS_TOLERANCE
+        ):
+            raise RuntimeError(
+                f"Position/TradeLog mismatch: "
+                f"portfolio={self._position_units}, trade_log={expected_units}"
+            )
+        if not math.isfinite(self._position_units) or not math.isfinite(self._equity):
+            raise RuntimeError(
+                f"Portfolio state non-finite: "
+                f"position_units={self._position_units}, equity={self._equity}"
+            )
 
     def _fraction_to_units(self, fraction: float, price: float) -> float:
         """

@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 import pandas as pd
 
 from trading.backtester.engine.config_bases import ExecutionConfig
-from trading.backtester.portfolio.base import PortfolioSnapshot
 from trading.backtester.fill import Order, Fill
 
 logger = logging.getLogger(__name__)
@@ -51,25 +50,20 @@ class ExecutionEngine(ABC):
         return self._fill_model.price_type
 
     @abstractmethod
-    def submit(self, 
-               target_frac: float,
-               state: PortfolioSnapshot,
-               bar: pd.Series) -> None:
+    def submit(
+        self,
+        timestamp: pd.Timestamp,
+        target_fraction: float,
+        equity: float,
+        position_units: float,
+        price: float,
+        immediate: bool = False,
+    ) -> None:
         """
         Submit a position target to the execution engine.
 
         Concrete implementations convert the target into an Order and queue
-        it. Execution may be delayed by ``delay_bars``.
-
-        Parameters
-        ----------
-        target_frac : float
-            Desired signed position as a fraction of equity
-            (e.g. 0.5 = 50% long).
-        state : PortfolioSnapshot
-            Current portfolio state (used for position delta calculation).
-        bar : pd.Series
-            Current bar data.
+        it. Execution may be delayed by ``delay_bars`` unless ``immediate``.
         """
 
 
@@ -94,8 +88,8 @@ class ExecutionEngine(ABC):
             Fills executed this bar (may be empty).
         """
 
-    def _cancel_all_pending(self) -> None:
-        """Clear all pending and queued orders. Called on liquidation or error."""
+    def cancel_all_pending(self) -> None:
+        """Clear all pending and queued orders. Called on flatten or error."""
         self._queue.clear()
         self._active.clear()
         self._pending_notional = 0.0
