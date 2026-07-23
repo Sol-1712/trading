@@ -139,7 +139,8 @@ class PerpDirectionalEngine(ExecutionEngine):
 
         for order in self._active:
             fill = self._fill_model.attempt_fill(order, bar)
-
+            ### Need some sort of fee check here -> Based on available cash
+            
             if fill is None:
                 # No fill this bar — order stays active
                 remaining.append(order)

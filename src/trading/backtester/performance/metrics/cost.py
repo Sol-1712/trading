@@ -97,7 +97,7 @@ class CostMetrics(MetricsGroup):
     @property
     def avg_fee_per_trade(self) -> float:
         """Average fee per rebalance as a fraction of equity."""
-        n_trades = int(np.sum(self.core.trade_occurred))
+        n_trades = int(np.sum(self.core.fill_occurred))
         if n_trades == 0:
             return float("nan")
         return float(np.sum(self.core.fee_returns) / n_trades)

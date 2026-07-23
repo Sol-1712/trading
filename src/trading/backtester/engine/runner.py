@@ -1,3 +1,4 @@
+from trading.data_utils.core.enums import PriceType
 import pandas as pd
 import logging
 
@@ -98,15 +99,27 @@ class BacktestRunner:
             mark_close   = float(bar[self._mtm_col])
             funding_rate = float(bar.get("funding_rate", 0.0))
 
+            # Accrue portfolio
+            position_pnl, funding_pnl = self._portfolio.accrue_bar(
+                timestamp    = index[t],
+                mtm_price    = mark_close,
+                funding_rate = funding_rate)
+
+            if self._portfolio.is_ruined():
+                logger.info("Portfolio is ruined at bar %d", t)
+                ### LIQUIDATE HERE: TO IMPLEMENT
+                break
+
             # Attempt fills on pending orders
             fills = self._engine.execute_pending(bar, t)
 
-            # Update portfolio
-            state = self._portfolio.step(
+            # Update portfolio state
+            state = self._portfolio.account_fills(
                 timestamp    = index[t],
                 fills        = fills,
-                mtm_price    = mark_close,
-                funding_rate = funding_rate)
+                position_pnl = position_pnl,
+                funding_pnl  = funding_pnl,
+            )
 
             # Signal -> Target -> Risk
             signal = signals[t] 
@@ -149,7 +162,7 @@ class BacktestRunner:
         signal_type    = self.strategy.data_requirements().price_type
         execution_type = self.config.execution.price_type
         mtm_type       = self.config.execution.mtm_price_type
-        price_types    = tuple({signal_type, execution_type, mtm_type})
+        price_types    = tuple[PriceType, ...]({signal_type, execution_type, mtm_type})
         
         data = prepare_data(
             config      = self.config.data,
@@ -312,7 +325,7 @@ class BacktestRunner:
             
         """
         if signal is None:
-            return None   # hold whatever we have
+            return None   # No new signal
 
         if signal.direction == SignalDirection.FLAT:
             return 0.0

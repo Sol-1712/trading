@@ -9,7 +9,7 @@ class PortfolioSnapshot:
     """
     Immutable record of portfolio state at the end of a single bar.
 
-    Produced by ``Portfolio.step()`` and accumulated into the history
+    Produced by ``Portfolio.account_fills()`` and accumulated into the history
     DataFrame. ``slots=True`` reduces per-instance memory for long runs.
 
     Attributes
@@ -34,7 +34,7 @@ class PortfolioSnapshot:
         Total fees paid this bar across fills.
     net_pnl : float
         ``position_pnl + funding_pnl - fees``.
-    trade_occurred : bool
+    fill_occurred : bool
         True if at least one fill was applied this bar.
     """
 
@@ -47,4 +47,4 @@ class PortfolioSnapshot:
     funding_pnl:       float     # funding payment (negative = paid, positive = received)
     fees:              float     # total fees paid this bar
     net_pnl:           float     # position_pnl + funding_pnl - fee
-    trade_occurred:    bool
+    fill_occurred:     bool

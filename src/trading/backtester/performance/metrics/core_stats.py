@@ -27,7 +27,7 @@ class CoreStats:
     REQUIRED_COLS = (
         "equity", "position_units", "position_fraction",
         "position_pnl", "funding_pnl", "fees", "net_pnl",
-        "trade_occurred",
+        "fill_occurred",
     )
 
     def __init__(self, portfolio_history: pd.DataFrame, rf: float = 0.0):
@@ -46,7 +46,7 @@ class CoreStats:
         self.funding_pnl        = df["funding_pnl"].to_numpy()
         self.fees               = df["fees"].to_numpy()
         self.net_pnl            = df["net_pnl"].to_numpy()
-        self.trade_occurred     = df["trade_occurred"].to_numpy()
+        self.fill_occurred     = df["fill_occurred"].to_numpy()
 
         if np.any(np.isnan(self.equity)):
             raise ValueError("Equity column contains NaN values")

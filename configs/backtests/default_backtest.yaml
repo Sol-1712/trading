@@ -17,7 +17,7 @@ execution:
     # mtm_price_type:       "mark"
 
 risk:
-  leverage_max: 100.0
+  leverage_max: 1.0
   max_drawdown: 0.20
   max_position: 1.0
 
