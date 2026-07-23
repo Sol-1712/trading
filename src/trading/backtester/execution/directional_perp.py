@@ -101,8 +101,6 @@ class PerpDirectionalEngine(ExecutionEngine):
             self._pending_notional += delta_notional
             return
 
-
-
         if equity <= 0.0:
             logger.warning("Cannot submit: equity %.2f — skipping.", equity)
             return
