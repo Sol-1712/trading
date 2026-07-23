@@ -5,6 +5,7 @@ import pandas as pd
 
 from trading.backtester.engine.config_bases import ExecutionConfig
 from trading.backtester.fill import Order, Fill
+from trading.data_utils.core import PriceType
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,7 @@ class ExecutionEngine(ABC):
 
         self.config                     = config
         self._fill_model                = config.fill_model_cls(fee_rate=config.fee_rate)
-        self._queue:   dict[int, Order] = {}
+        self._queue:                    dict[int, list[Order]] = {}
         self._pending_notional: float   = 0.0
         self._current_bar: int          = 0
         self._active: list[Order]       = []
@@ -38,34 +39,27 @@ class ExecutionEngine(ABC):
         logger.debug("ExecutionEngine initialized with config: %s", type(config).__name__)
 
     @property
-    def price_type(self):
+    def price_type(self) -> PriceType:
         """
         Price series required by the configured fill model.
-
-        Returns
-        -------
-        PriceType
-            Price type declared by the active fill model.
         """
         return self._fill_model.price_type
+    
+    @property
+    def pending_notional(self) -> float:
+        """
+        The total notional value of all pending orders.
+        """
+        return self._pending_notional
 
     @abstractmethod
     def submit(
         self,
         timestamp: pd.Timestamp,
-        target_fraction: float,
-        equity: float,
-        position_units: float,
-        price: float,
+        delta_notional: float,
         immediate: bool = False,
     ) -> None:
-        """
-        Submit a position target to the execution engine.
-
-        Concrete implementations convert the target into an Order and queue
-        it. Execution may be delayed by ``delay_bars`` unless ``immediate``.
-        """
-
+        """Add a new order to the queue."""
 
     @abstractmethod
     def execute_pending(self, bar: pd.Series, t: int) -> list[Fill]:

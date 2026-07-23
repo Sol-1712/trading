@@ -21,10 +21,12 @@ class BacktestResults:
     Attributes
     ----------
     signals : list[Signal]
-        Signal objects or None entries for each bar (length = len(data)).
+        Signal objects or None entries for each processed bar
+        (length = len(portfolio_history)). Truncated on early ruin.
     targets : list[float | None]
         Target position fractions from the position sizer / risk step
-        (length = len(data)); None means no action that bar.
+        (length = len(portfolio_history)). None means no sizing action
+        that bar (including the exit / final bar, which never submits).
     trade_log : TradeLog
         Trade log containing open and closed trades.
     portfolio_history : pd.DataFrame
@@ -40,10 +42,15 @@ class BacktestResults:
 
         if self.portfolio_history is None or self.portfolio_history.empty:
             raise ValueError("portfolio_history cannot be None or empty")
-        if len(self.signals) != len(self.portfolio_history):
-            raise ValueError(f"Signal count {len(self.signals)} != history length {len(self.portfolio_history)}")
-        if len(self.targets) != len(self.portfolio_history):
-            raise ValueError(f"Target count {len(self.targets)} != history length {len(self.portfolio_history)}")
+        n = len(self.portfolio_history)
+        if len(self.signals) != n:
+            raise ValueError(
+                f"Signal count {len(self.signals)} != history length {n}"
+            )
+        if len(self.targets) != n:
+            raise ValueError(
+                f"Target count {len(self.targets)} != history length {n}"
+            )
         
         logger.debug("BacktestResults created: %d signals, final equity=%.2f",
                     sum(1 for s in self.signals if s is not None),

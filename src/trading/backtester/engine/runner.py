@@ -1,6 +1,8 @@
 from trading.data_utils.core.enums import PriceType
 import pandas as pd
 import logging
+import numpy as np
+import math
 
 from trading.data_utils.prepare                      import prepare_data
 from trading.backtester.engine.config_bases          import BacktestConfig
@@ -131,14 +133,14 @@ class BacktestRunner:
                 targets.append(target)
 
                 if target is not None:
-                    self._engine.submit(
-                        timestamp       = timestamp,
-                        target_fraction = target, 
-                        equity          = state.equity,
-                        position_units  = state.position_units,
-                        price           = mark_close,
-                        )
-
+                    delta = self._compute_delta_notional(
+                        target_fraction=target,
+                        equity=state.equity,
+                        position_units=state.position_units,
+                        price=mark_close,
+                    )
+                    if delta is not None:
+                        self._engine.submit(timestamp, delta_notional=delta)
         # --- After the loop -----------------------------------------
 
         exit_bar = bar
@@ -159,14 +161,19 @@ class BacktestRunner:
         self._portfolio.commit_snapshot()
 
         history = self._portfolio.history()
+        # Exit bar (last bar or ruin) has a snapshot but no sizing step.
+        targets.append(None)
+
         logger.info(
             "Backtest complete: %d bars processed, final equity=%.2f",
             self._portfolio.n_bars,
             self._portfolio.equity,
         )
 
+        # Align to run horizon (truncate signals if ruined early).
+        n_hist = len(history)
         return BacktestResults(
-            signals=signals,
+            signals=signals[:n_hist],
             targets=targets,
             trade_log=self._portfolio.trade_log,
             portfolio_history=history,
@@ -387,6 +394,67 @@ class BacktestRunner:
         """
         return target
     
+    def _compute_delta_notional(
+        self,
+        target_fraction: float,
+        equity: float,
+        position_units: float,
+        price: float,
+        ) -> float:
+        """
+        Convert a target fraction into a signed notional delta for the engine.
+        Accounts for current position and engine.pending_notional. On a direction
+        reversal vs pending, cancels pending and resizes against the flat book.
+
+        Parameters
+        ----------
+        target_fraction : float
+            The desired signed position as a fraction of equity.
+        equity : float
+            The current equity of the portfolio.
+        position_units : float
+            The current position units of the portfolio.
+        price : float
+            The mtm price of the asset.
+
+        Returns
+        -------
+        float | None
+            Delta to pass to ``submit``, or None to skip (ruin / no-op).
+        """
+
+        tol = self._engine._UNITS_TOLERANCE
+
+        if not math.isfinite(target_fraction) or not math.isfinite(price) or price <= 0:
+            raise ValueError(
+                f"Invalid target_fraction/price: {target_fraction}, {price}"
+            )
+        # Can't open / increase when ruined; flatten is handled separately in _flatten
+        if equity <= tol and abs(target_fraction) > tol:
+            logger.warning(
+                "Skipping submit: equity %.4g with non-flat target %.4g",
+                equity, target_fraction,
+            )
+            return None
+
+        current_notional = position_units * price
+        pending = self._engine.pending_notional
+        target_notional = target_fraction * max(equity, 0.0)  # flat→0 if ruined
+        delta = target_notional - current_notional - pending
+
+        # Reversal vs in-flight orders: cancel, then size vs book only
+        if (
+            abs(pending) > tol
+            and abs(delta) > tol
+            and np.sign(delta) != np.sign(pending)
+        ):
+            self._engine.cancel_all_pending()
+            delta = target_notional - current_notional
+
+        if abs(delta) <= tol:
+            return None
+
+        return float(delta)
 
     def _flatten(
         self,
@@ -402,14 +470,10 @@ class BacktestRunner:
         """
         self._engine._current_bar = t
 
-        self._engine.submit(
-            timestamp       = timestamp,
-            target_fraction = 0.0,
-            equity          = self._portfolio.equity,
-            position_units  = self._portfolio.position_units,
-            price           = price,
-            immediate       = True
-        )
+        delta = -self._portfolio.position_units * price
+        if abs(delta) > self._engine._UNITS_TOLERANCE:
+            self._engine.submit(timestamp, delta_notional=delta, immediate=True)
+
         fills = self._engine.execute_pending(bar, t)
         self._portfolio.apply_fills(fills)
 
